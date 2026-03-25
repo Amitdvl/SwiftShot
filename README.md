@@ -26,6 +26,13 @@ Capture regions, windows, or full screens with global shortcuts. Optionally add 
 
 Shortcuts can be enabled/disabled in **Preferences > Shortcuts**.
 
+## Installation
+
+1. Download and open the `.dmg`, drag **SwiftShot** to Applications
+2. On first launch, macOS will block the app because it isn't notarized. To open it:
+   - Right-click the app → **Open** → click **Open** in the dialog
+   - Or run: `xattr -cr /Applications/SwiftShot.app`
+
 ## Requirements
 
 - macOS 14.0+
