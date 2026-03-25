@@ -9,23 +9,13 @@ enum HUDController {
 
     private static var panel: NSPanel?
 
-    /// macOS 15+ renamed the pane to "Screen & System Audio Recording".
-    private static var screenRecordingPaneName: String {
-        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 15 {
-            return "Screen & System Audio Recording"
-        }
-        return "Screen Recording"
-    }
-
     static func showPermissionDenied() {
         dismissCurrent()
 
-        let paneName = screenRecordingPaneName
-
         let view = HUDView(
             icon: "lock.shield",
-            title: "\(paneName) Off",
-            message: "Enable SwiftShot in\nPrivacy & Security \u{2192} \(paneName)",
+            title: "Screen Recording Off",
+            message: "Enable SwiftShot in\nPrivacy & Security \u{2192} Screen Recording",
             actionLabel: "Open Settings",
             action: {
                 dismissCurrent()

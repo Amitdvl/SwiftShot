@@ -7,13 +7,19 @@ import UserNotifications
 enum NotificationService {
 
     /// Request notification authorization. Call once at app launch.
+    /// If authorization was previously provisional (quiet), this upgrades
+    /// it to full by re-requesting — macOS will show the permission dialog.
     static func requestAuthorization() {
         let center = UNUserNotificationCenter.current()
-        center.requestAuthorization(options: [.alert, .sound]) { granted, error in
-            if let error {
-                print("[NotificationService] authorization error: \(error.localizedDescription)")
-            } else {
-                print("[NotificationService] authorization granted: \(granted)")
+        center.getNotificationSettings { settings in
+            if settings.authorizationStatus == .provisional || settings.authorizationStatus == .notDetermined {
+                center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+                    if let error {
+                        print("[NotificationService] authorization error: \(error.localizedDescription)")
+                    } else {
+                        print("[NotificationService] authorization granted: \(granted)")
+                    }
+                }
             }
         }
     }
