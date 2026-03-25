@@ -7,11 +7,9 @@ import UserNotifications
 enum NotificationService {
 
     /// Request notification authorization. Call once at app launch.
-    /// Uses `.provisional` so notifications are delivered immediately
-    /// without requiring the user to approve a system dialog first.
     static func requestAuthorization() {
         let center = UNUserNotificationCenter.current()
-        center.requestAuthorization(options: [.alert, .sound, .provisional]) { granted, error in
+        center.requestAuthorization(options: [.alert, .sound]) { granted, error in
             if let error {
                 print("[NotificationService] authorization error: \(error.localizedDescription)")
             } else {
