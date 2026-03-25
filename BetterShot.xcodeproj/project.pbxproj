@@ -11,10 +11,10 @@
 		1CBDB240923B9F176D454CEA /* Backgrounds in Resources */ = {isa = PBXBuildFile; fileRef = A9FD147E96AE29FF1E11357F /* Backgrounds */; };
 		2B5CFACD398D259C5A46AB0A /* OCRService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9118BC7B53132E74D99717ED /* OCRService.swift */; };
 		73B0808A8156707805E244DC /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E61D0F1FEBB7D55DFFAEFD0 /* ExportService.swift */; };
+		79BB3D9C56FF2CAEDF9929F2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7B422FC454B20D160454685 /* Assets.xcassets */; };
 		8DE8284BB4FB2FADBBA767D8 /* BackgroundCompositor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A724B74F238799AF2A5B1B /* BackgroundCompositor.swift */; };
 		9E59748C23B54CBE80973EC6 /* SoundPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60F1D630656D331F4C451314 /* SoundPlayer.swift */; };
 		AAFEEAF2EA9847FB4DE8C0F7 /* GlobalShortcutManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 595CE6F9031988819F5D4499 /* GlobalShortcutManager.swift */; };
-		BED0FA148F8CC1760B01B5EC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = "TEMP_92DD8565-247D-449F-B2E7-ABC3E4C705A3" /* Assets.xcassets */; };
 		BF054EBDD5798DF008804F7A /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F81A2C043E10CDC32614C228 /* PreferencesView.swift */; };
 		CDAA9DC1D7B950092E3489F2 /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45F8B9223807E161D89DE7C4 /* ClipboardService.swift */; };
 		E402C15861BE00ED79C263F5 /* BetterShotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D1F9D40F89FCADEEF9A7542 /* BetterShotApp.swift */; };
@@ -33,10 +33,10 @@
 		60F1D630656D331F4C451314 /* SoundPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundPlayer.swift; sourceTree = "<group>"; };
 		9118BC7B53132E74D99717ED /* OCRService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRService.swift; sourceTree = "<group>"; };
 		A9FD147E96AE29FF1E11357F /* Backgrounds */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Backgrounds; path = BetterShot/Resources/Backgrounds; sourceTree = SOURCE_ROOT; };
+		C7B422FC454B20D160454685 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F46A331394FBCD6FCFD29F62 /* BetterShot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BetterShot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F49DF298AADBD7976E9F6D60 /* ScreenCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCaptureService.swift; sourceTree = "<group>"; };
 		F81A2C043E10CDC32614C228 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
-		"TEMP_92DD8565-247D-449F-B2E7-ABC3E4C705A3" /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -83,6 +83,7 @@
 			children = (
 				0D1F9D40F89FCADEEF9A7542 /* BetterShotApp.swift */,
 				657733B82B41DD6646BDB16D /* Models */,
+				E0B0E188C3ED27E7E9CB3C83 /* Resources */,
 				9386B42C6121ACB7D67E266F /* Services */,
 				C66DA0EAF2ED838B3BAE6D0C /* ViewModels */,
 				541EA7A82F5D5F9FD9A0A57E /* Views */,
@@ -107,10 +108,10 @@
 			path = ViewModels;
 			sourceTree = "<group>";
 		};
-		"TEMP_3406BFB3-A4F4-44B5-8FC9-4356DDBAAC66" /* Resources */ = {
+		E0B0E188C3ED27E7E9CB3C83 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_92DD8565-247D-449F-B2E7-ABC3E4C705A3" /* Assets.xcassets */,
+				C7B422FC454B20D160454685 /* Assets.xcassets */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -171,7 +172,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BED0FA148F8CC1760B01B5EC /* Assets.xcassets in Resources */,
+				79BB3D9C56FF2CAEDF9929F2 /* Assets.xcassets in Resources */,
 				1CBDB240923B9F176D454CEA /* Backgrounds in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
