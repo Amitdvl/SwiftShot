@@ -14,10 +14,10 @@
 		8DE8284BB4FB2FADBBA767D8 /* BackgroundCompositor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A724B74F238799AF2A5B1B /* BackgroundCompositor.swift */; };
 		9E59748C23B54CBE80973EC6 /* SoundPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60F1D630656D331F4C451314 /* SoundPlayer.swift */; };
 		AAFEEAF2EA9847FB4DE8C0F7 /* GlobalShortcutManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 595CE6F9031988819F5D4499 /* GlobalShortcutManager.swift */; };
+		BED0FA148F8CC1760B01B5EC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = "TEMP_92DD8565-247D-449F-B2E7-ABC3E4C705A3" /* Assets.xcassets */; };
 		BF054EBDD5798DF008804F7A /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F81A2C043E10CDC32614C228 /* PreferencesView.swift */; };
 		CDAA9DC1D7B950092E3489F2 /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45F8B9223807E161D89DE7C4 /* ClipboardService.swift */; };
 		E402C15861BE00ED79C263F5 /* BetterShotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D1F9D40F89FCADEEF9A7542 /* BetterShotApp.swift */; };
-		E4213AFB99391978E4175300 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = "TEMP_E39E5E76-1383-4A96-A40E-B47C1D0EE51D" /* Assets.xcassets */; };
 		EFAD1ACD12AF338CAED426A4 /* ScreenCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F49DF298AADBD7976E9F6D60 /* ScreenCaptureService.swift */; };
 		FE86959A703225BB7F6AEA70 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02A5F55B3CF2A0C779211FA0 /* AppState.swift */; };
 /* End PBXBuildFile section */
@@ -36,7 +36,7 @@
 		F46A331394FBCD6FCFD29F62 /* BetterShot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BetterShot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F49DF298AADBD7976E9F6D60 /* ScreenCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCaptureService.swift; sourceTree = "<group>"; };
 		F81A2C043E10CDC32614C228 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
-		"TEMP_E39E5E76-1383-4A96-A40E-B47C1D0EE51D" /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		"TEMP_92DD8565-247D-449F-B2E7-ABC3E4C705A3" /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -107,10 +107,10 @@
 			path = ViewModels;
 			sourceTree = "<group>";
 		};
-		"TEMP_7A64DA6D-5821-432E-A967-98481B586A8A" /* Resources */ = {
+		"TEMP_3406BFB3-A4F4-44B5-8FC9-4356DDBAAC66" /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_E39E5E76-1383-4A96-A40E-B47C1D0EE51D" /* Assets.xcassets */,
+				"TEMP_92DD8565-247D-449F-B2E7-ABC3E4C705A3" /* Assets.xcassets */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -171,7 +171,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E4213AFB99391978E4175300 /* Assets.xcassets in Resources */,
+				BED0FA148F8CC1760B01B5EC /* Assets.xcassets in Resources */,
 				1CBDB240923B9F176D454CEA /* Backgrounds in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -254,7 +254,7 @@
 				MARKETING_VERSION = 1.0.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.bettershot.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.swiftshot.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -324,7 +324,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.bettershot.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.swiftshot.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;

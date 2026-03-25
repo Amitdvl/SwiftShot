@@ -1,6 +1,6 @@
 name: BetterShot
 options:
-  bundleIdPrefix: com.bettershot
+  bundleIdPrefix: com.swiftshot
   deploymentTarget:
     macOS: "14.0"
   xcodeVersion: "16.0"
@@ -10,7 +10,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
-    PRODUCT_BUNDLE_IDENTIFIER: com.bettershot.app
+    PRODUCT_BUNDLE_IDENTIFIER: com.swiftshot.app
     MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "1"
     INFOPLIST_FILE: Info.plist

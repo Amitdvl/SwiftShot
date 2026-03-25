@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>BetterShot</string>
+    <string>SwiftShot</string>
     <key>CFBundleDisplayName</key>
-    <string>BetterShot</string>
+    <string>SwiftShot</string>
     <key>CFBundleIdentifier</key>
     <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
     <key>CFBundleVersion</key>
@@ -20,11 +20,9 @@
     <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>
     <string>$(MACOSX_DEPLOYMENT_TARGET)</string>
-    <key>LSUIElement</key>
-    <true/>
     <key>NSScreenCaptureUsageDescription</key>
-    <string>BetterShot needs Screen Recording permission to capture screenshots.</string>
+    <string>SwiftShot needs Screen Recording permission to capture screenshots.</string>
     <key>NSAppleEventsUsageDescription</key>
-    <string>BetterShot uses AppleScript for clipboard operations.</string>
+    <string>SwiftShot uses AppleScript for clipboard operations.</string>
 </dict>
 </plist>
