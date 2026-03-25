@@ -14,7 +14,7 @@ final class ExportService: Sendable {
         try fm.createDirectory(atPath: directory, withIntermediateDirectories: true)
 
         let timestamp = Int(Date().timeIntervalSince1970 * 1000)
-        let filename = "bettershot_\(timestamp).png"
+        let filename = "SwiftShot-\(timestamp).png"
         let path = (directory as NSString).appendingPathComponent(filename)
         let url = URL(fileURLWithPath: path)
 
@@ -28,7 +28,7 @@ final class ExportService: Sendable {
         try fm.createDirectory(atPath: directory, withIntermediateDirectories: true)
 
         let timestamp = Int(Date().timeIntervalSince1970 * 1000)
-        let filename = "bettershot_\(timestamp).png"
+        let filename = "SwiftShot-\(timestamp).png"
         let destPath = (directory as NSString).appendingPathComponent(filename)
         let destURL = URL(fileURLWithPath: destPath)
 

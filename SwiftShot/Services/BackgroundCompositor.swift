@@ -57,10 +57,17 @@ enum BackgroundCompositor {
         autoreleasepool {
             guard let bgImage = loadBackground(named: backgroundName) else { return nil }
 
-            let padding: CGFloat = 1.875
+            let paddingPercent: CGFloat = 0.01
             let cornerRadius: CGFloat = 12
-            let outW: CGFloat = 1920
-            let outH: CGFloat = 1080
+            let ssSize = screenshot.size
+
+            // Size the canvas to match the screenshot aspect ratio with even padding
+            let baseW: CGFloat = 1920
+            let ssAspect = ssSize.width / ssSize.height
+            let baseH = baseW / ssAspect
+            let padding = baseW * paddingPercent
+            let outW = baseW
+            let outH = baseH
             let outSize = CGSize(width: outW, height: outH)
 
             guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
@@ -93,15 +100,11 @@ enum BackgroundCompositor {
             }
 
             // 2. Scale screenshot to fit within canvas minus padding, centered
-            let ssSize = screenshot.size
-            let maxW = outW - padding * 2
-            let maxH = outH - padding * 2
-            let scale = min(maxW / ssSize.width, maxH / ssSize.height)
-            let scaledW = ssSize.width * scale
-            let scaledH = ssSize.height * scale
+            let scaledW = outW - padding * 2
+            let scaledH = outH - padding * 2
             let ssRect = CGRect(
-                x: (outW - scaledW) / 2,
-                y: (outH - scaledH) / 2,
+                x: padding,
+                y: padding,
                 width: scaledW,
                 height: scaledH
             )
