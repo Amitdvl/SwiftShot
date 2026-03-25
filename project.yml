@@ -1,0 +1,42 @@
+name: BetterShot
+options:
+  bundleIdPrefix: com.bettershot
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+  defaultConfig: Release
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    PRODUCT_BUNDLE_IDENTIFIER: com.bettershot.app
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    INFOPLIST_FILE: Info.plist
+    CODE_SIGN_ENTITLEMENTS: BetterShot.entitlements
+    CODE_SIGN_IDENTITY: "-"
+    ENABLE_HARDENED_RUNTIME: true
+
+targets:
+  BetterShot:
+    type: application
+    platform: macOS
+    sources:
+      - path: BetterShot
+        excludes:
+          - "Resources/Backgrounds/**"
+          - "Resources/Assets.xcassets"
+          - "Resources/icon.icns"
+      - path: BetterShot/Resources/Backgrounds
+        type: folder
+        buildPhase: resources
+      - path: BetterShot/Resources/Assets.xcassets
+        buildPhase: resources
+    settings:
+      base:
+        INFOPLIST_FILE: Info.plist
+        CODE_SIGN_ENTITLEMENTS: BetterShot.entitlements
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+    entitlements:
+      path: BetterShot.entitlements
