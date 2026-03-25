@@ -42,10 +42,6 @@ final class AppState {
         let captureService = ScreenCaptureService.shared
 
         guard await captureService.hasPermission() else {
-            statusMessage = "Screen Recording permission required"
-            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
-                NSWorkspace.shared.open(url)
-            }
             isCapturing = false
             return
         }
@@ -110,7 +106,7 @@ final class AppState {
 
             lastCapturePath = saved.path
             statusMessage = "Saved to \(saved.lastPathComponent)"
-            NotificationService.notifyScreenshotSaved(filename: saved.lastPathComponent)
+            NotificationService.notifyScreenshotSaved(filename: saved.lastPathComponent, copied: appSettings.copyToClipboard)
 
             try? FileManager.default.removeItem(at: url)
         } catch {

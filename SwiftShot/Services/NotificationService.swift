@@ -10,10 +10,10 @@ enum NotificationService {
 
     static func requestAuthorization() {}
 
-    static func notifyScreenshotSaved(filename: String) {
+    static func notifyScreenshotSaved(filename: String, copied: Bool = true) {
         dismissCurrent()
 
-        let toast = ToastView(title: "Screenshot Saved", subtitle: filename)
+        let toast = ToastView(title: "Screenshot Saved", subtitle: filename, copied: copied)
         let hosting = NSHostingView(rootView: toast)
         hosting.setFrameSize(hosting.fittingSize)
 
@@ -68,26 +68,42 @@ enum NotificationService {
 private struct ToastView: View {
     let title: String
     let subtitle: String
+    let copied: Bool
 
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "camera.viewfinder")
                 .font(.title2)
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white)
-                Text(subtitle)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.8))
-                    .lineLimit(1)
+                    .foregroundStyle(.primary)
+                HStack(spacing: 4) {
+                    Text(subtitle)
+                        .foregroundStyle(.secondary)
+                    if copied {
+                        Text("· Copied")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .font(.system(size: 12))
+                .lineLimit(1)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .environment(\.colorScheme, .dark)
+        .modifier(LiquidGlassModifier())
+    }
+}
+
+private struct LiquidGlassModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.glassEffect(.regular, in: .capsule)
+        } else {
+            content.background(.ultraThinMaterial, in: Capsule())
+        }
     }
 }
