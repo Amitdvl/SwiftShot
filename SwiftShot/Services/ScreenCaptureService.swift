@@ -1,27 +1,14 @@
 import AppKit
 import Foundation
-import ScreenCaptureKit
 
 // MARK: - Screen Capture Service
 
 /// Uses macOS `screencapture` CLI for reliable screenshot capture.
-/// This matches the approach used by the original Tauri app.
 @MainActor
 final class ScreenCaptureService: Sendable {
     static let shared = ScreenCaptureService()
 
     private init() {}
-
-    /// Live permission check via ScreenCaptureKit — no process-level caching.
-    /// Returns true immediately after the user flips the toggle in Settings.
-    func hasPermission() async -> Bool {
-        do {
-            _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-            return true
-        } catch {
-            return false
-        }
-    }
 
     /// Interactive region capture — user selects area
     func captureRegion() async throws -> URL {

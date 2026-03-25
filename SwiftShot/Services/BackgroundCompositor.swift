@@ -57,7 +57,7 @@ enum BackgroundCompositor {
         autoreleasepool {
             guard let bgImage = loadBackground(named: backgroundName) else { return nil }
 
-            let padding: CGFloat = 3.75
+            let padding: CGFloat = 1.875
             let cornerRadius: CGFloat = 12
             let outW: CGFloat = 1920
             let outH: CGFloat = 1080
