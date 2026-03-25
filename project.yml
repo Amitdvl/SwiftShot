@@ -26,7 +26,11 @@ targets:
       - path: BetterShot
         excludes:
           - "Resources/Assets.xcassets"
+          - "Resources/Backgrounds/**"
           - "Resources/icon.icns"
+      - path: BetterShot/Resources/Backgrounds
+        type: folder
+        buildPhase: resources
       - path: BetterShot/Resources/Assets.xcassets
         buildPhase: resources
     settings:
