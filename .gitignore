@@ -1,0 +1,14 @@
+# Build artifacts
+dist/
+*.dmg
+.build/
+DerivedData/
+
+# Xcode
+xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# macOS
+.DS_Store
