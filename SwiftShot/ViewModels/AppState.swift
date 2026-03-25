@@ -41,11 +41,6 @@ final class AppState {
 
         let captureService = ScreenCaptureService.shared
 
-        guard await captureService.hasPermission() else {
-            isCapturing = false
-            return
-        }
-
         do {
 
             switch mode {
