@@ -18,7 +18,6 @@
 		63E697EF0D3012FA808080F6 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE8397E5F6FA68AD5F110155 /* PreferencesView.swift */; };
 		92F7ED1ECF597236CE551D98 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCA19403F5B4483A2026EF7F /* ExportService.swift */; };
 		B5B15CB247416B874C174957 /* SwiftShotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1749F52E8101266A93CC0880 /* SwiftShotApp.swift */; };
-		C3DC11C13BF343D6C99F9B7D /* HUDController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99D729497312CE6821DC3C0F /* HUDController.swift */; };
 		E0C822BAD0D586A01FE615A2 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E055FF653694B18FB67415 /* NotificationService.swift */; };
 		EC51DDFF9CA54CE24CC9484C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 06298C2B4F4E32E641DC8AA2 /* Assets.xcassets */; };
 		FE282B16746BC3BC000C85DD /* OCRService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA433BDE75436890C13DBCE /* OCRService.swift */; };
@@ -32,7 +31,6 @@
 		506027FF069DFCBEC0200606 /* BackgroundCompositor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundCompositor.swift; sourceTree = "<group>"; };
 		59C83E3F095931490FCBA595 /* Backgrounds */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Backgrounds; path = SwiftShot/Resources/Backgrounds; sourceTree = SOURCE_ROOT; };
 		758FBA7A9DED4F9EE343E567 /* ScreenCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCaptureService.swift; sourceTree = "<group>"; };
-		99D729497312CE6821DC3C0F /* HUDController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDController.swift; sourceTree = "<group>"; };
 		9CA433BDE75436890C13DBCE /* OCRService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRService.swift; sourceTree = "<group>"; };
 		B9103C8429176A89F8B9256F /* ClipboardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardService.swift; sourceTree = "<group>"; };
 		BE8397E5F6FA68AD5F110155 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
@@ -51,7 +49,6 @@
 				B9103C8429176A89F8B9256F /* ClipboardService.swift */,
 				FCA19403F5B4483A2026EF7F /* ExportService.swift */,
 				E59CDD953653AE145F8B0105 /* GlobalShortcutManager.swift */,
-				99D729497312CE6821DC3C0F /* HUDController.swift */,
 				C1E055FF653694B18FB67415 /* NotificationService.swift */,
 				9CA433BDE75436890C13DBCE /* OCRService.swift */,
 				758FBA7A9DED4F9EE343E567 /* ScreenCaptureService.swift */,
@@ -196,7 +193,6 @@
 				0A0B304928BB886F0CFD8AE1 /* ClipboardService.swift in Sources */,
 				92F7ED1ECF597236CE551D98 /* ExportService.swift in Sources */,
 				4DE088F27A2AEF9C691E87C4 /* GlobalShortcutManager.swift in Sources */,
-				C3DC11C13BF343D6C99F9B7D /* HUDController.swift in Sources */,
 				E0C822BAD0D586A01FE615A2 /* NotificationService.swift in Sources */,
 				FE282B16746BC3BC000C85DD /* OCRService.swift in Sources */,
 				63E697EF0D3012FA808080F6 /* PreferencesView.swift in Sources */,

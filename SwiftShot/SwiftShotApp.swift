@@ -1,5 +1,4 @@
 import SwiftUI
-import UserNotifications
 
 @main
 struct SwiftShotApp: App {
@@ -25,25 +24,11 @@ struct SwiftShotApp: App {
 
 // MARK: - App Delegate
 
-final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate {
     var appState: AppState?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Show in Dock so user can right-click → Keep in Dock
         NSApp.setActivationPolicy(.regular)
-
-        // Set up notifications
-        UNUserNotificationCenter.current().delegate = self
-        NotificationService.requestAuthorization()
-    }
-
-    // Show notifications even when the app is in the foreground
-    func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification,
-        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
-    ) {
-        completionHandler([.banner, .sound])
     }
 }
 

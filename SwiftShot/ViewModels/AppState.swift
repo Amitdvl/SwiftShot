@@ -42,7 +42,10 @@ final class AppState {
         let captureService = ScreenCaptureService.shared
 
         guard await captureService.hasPermission() else {
-            HUDController.showPermissionDenied()
+            statusMessage = "Screen Recording permission required"
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+                NSWorkspace.shared.open(url)
+            }
             isCapturing = false
             return
         }
