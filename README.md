@@ -1,4 +1,5 @@
 # SwiftShot
+<img width="2048" height="2048" alt="image" src="https://github.com/user-attachments/assets/f9e7c318-a694-4ca1-91ef-cece2070c570" />
 
 A fast, lightweight screenshot tool for macOS.
 
