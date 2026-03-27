@@ -44,13 +44,6 @@ struct PreferencesView: View {
                 }
             }
 
-            Section("Clipboard") {
-                Toggle("Copy to clipboard after save", isOn: $state.appSettings.copyToClipboard)
-                    .onChange(of: appState.appSettings.copyToClipboard) {
-                        appState.saveSettings()
-                    }
-            }
-
             Section("Background") {
                 let backgrounds = BackgroundCompositor.availableBackgrounds()
 

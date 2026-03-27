@@ -4,7 +4,6 @@ import Foundation
 
 struct AppSettings: Codable, Sendable {
     var saveDirectory: String
-    var copyToClipboard: Bool = true
     /// Selected background filename (without extension), or empty string for no background.
     var backgroundName: String = "green"
     var shortcuts: [ShortcutConfig] = ShortcutConfig.defaults

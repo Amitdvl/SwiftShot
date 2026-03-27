@@ -1,6 +1,13 @@
 import SwiftUI
 import Foundation
 
+// MARK: - Pending Capture
+
+struct PendingCapture: Sendable {
+    let data: Data
+    let saveDirectory: String
+}
+
 // MARK: - App State
 
 @MainActor
@@ -9,6 +16,7 @@ final class AppState {
     var isCapturing = false
     var lastCapturePath: String?
     var statusMessage: String?
+    var pendingCapture: PendingCapture?
 
     // Settings
     var appSettings: AppSettings
@@ -42,22 +50,21 @@ final class AppState {
         let captureService = ScreenCaptureService.shared
 
         do {
-
             switch mode {
             case .region:
                 let url = try await captureService.captureRegion()
                 SoundPlayer.shared.playScreenshotSound()
-                saveCapture(url: url)
+                preparePendingCapture(url: url)
 
             case .fullscreen:
                 let url = try await captureService.captureFullscreen()
                 SoundPlayer.shared.playScreenshotSound()
-                saveCapture(url: url)
+                preparePendingCapture(url: url)
 
             case .window:
                 let url = try await captureService.captureWindow()
                 SoundPlayer.shared.playScreenshotSound()
-                saveCapture(url: url)
+                preparePendingCapture(url: url)
 
             case .ocr:
                 let url = try await captureService.captureForOCR()
@@ -73,40 +80,44 @@ final class AppState {
         isCapturing = false
     }
 
-    // MARK: - Save Capture
+    // MARK: - Pending Capture
 
-    private func saveCapture(url: URL) {
+    private func preparePendingCapture(url: URL) {
+        let data: Data
+        if appSettings.backgroundEnabled,
+           let screenshot = NSImage(contentsOf: url),
+           let composited = BackgroundCompositor.composite(screenshot: screenshot, backgroundName: appSettings.backgroundName) {
+            data = composited
+        } else {
+            guard let raw = try? Data(contentsOf: url) else { return }
+            data = raw
+        }
+        try? FileManager.default.removeItem(at: url)
+
+        pendingCapture = PendingCapture(data: data, saveDirectory: appSettings.saveDirectory)
+
+        NotificationService.showCaptureActions(
+            onCopy: { [weak self] in self?.performCopy() },
+            onSave: { [weak self] in self?.performSave() }
+        )
+    }
+
+    func performCopy() {
+        guard let pending = pendingCapture else { return }
+        ClipboardService.shared.copyPNGData(pending.data)
+        pendingCapture = nil
+    }
+
+    func performSave() {
+        guard let pending = pendingCapture else { return }
         do {
-            let saved: URL
-
-            if appSettings.backgroundEnabled,
-               let screenshot = NSImage(contentsOf: url),
-               let composited = BackgroundCompositor.composite(screenshot: screenshot, backgroundName: appSettings.backgroundName) {
-                saved = try ExportService.shared.savePNGData(
-                    composited,
-                    to: appSettings.saveDirectory
-                )
-                if appSettings.copyToClipboard {
-                    ClipboardService.shared.copyPNGData(composited)
-                }
-            } else {
-                saved = try ExportService.shared.copyToSaveDirectory(
-                    from: url,
-                    directory: appSettings.saveDirectory
-                )
-                if appSettings.copyToClipboard {
-                    ClipboardService.shared.copyImage(from: url)
-                }
-            }
-
+            let saved = try ExportService.shared.savePNGData(pending.data, to: pending.saveDirectory)
             lastCapturePath = saved.path
             statusMessage = "Saved to \(saved.lastPathComponent)"
-            NotificationService.notifyScreenshotSaved(filename: saved.lastPathComponent, copied: appSettings.copyToClipboard)
-
-            try? FileManager.default.removeItem(at: url)
         } catch {
             statusMessage = "Save failed: \(error.localizedDescription)"
         }
+        pendingCapture = nil
     }
 
     // MARK: - OCR
