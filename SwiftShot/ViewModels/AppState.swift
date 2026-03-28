@@ -54,17 +54,17 @@ final class AppState {
             case .region:
                 let url = try await captureService.captureRegion()
                 SoundPlayer.shared.playScreenshotSound()
-                preparePendingCapture(url: url)
+                preparePendingCapture(url: url, applyBackground: false)
 
             case .fullscreen:
                 let url = try await captureService.captureFullscreen()
                 SoundPlayer.shared.playScreenshotSound()
-                preparePendingCapture(url: url)
+                preparePendingCapture(url: url, applyBackground: false)
 
             case .window:
                 let url = try await captureService.captureWindow()
                 SoundPlayer.shared.playScreenshotSound()
-                preparePendingCapture(url: url)
+                preparePendingCapture(url: url, applyBackground: true)
 
             case .ocr:
                 let url = try await captureService.captureForOCR()
@@ -82,9 +82,10 @@ final class AppState {
 
     // MARK: - Pending Capture
 
-    private func preparePendingCapture(url: URL) {
+    private func preparePendingCapture(url: URL, applyBackground: Bool) {
         let data: Data
-        if appSettings.backgroundEnabled,
+        if applyBackground,
+           appSettings.backgroundEnabled,
            let screenshot = NSImage(contentsOf: url),
            let composited = BackgroundCompositor.composite(screenshot: screenshot, backgroundName: appSettings.backgroundName) {
             data = composited
