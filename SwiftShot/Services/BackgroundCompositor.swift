@@ -58,16 +58,18 @@ enum BackgroundCompositor {
             guard let bgImage = loadBackground(named: backgroundName) else { return nil }
 
             let paddingPercent: CGFloat = 0.01
+            let baseCanvasWidth: CGFloat = 1920
             let cornerRadius: CGFloat = 12
-            let ssSize = screenshot.size
 
-            // Size the canvas to match the screenshot aspect ratio with even padding
-            let baseW: CGFloat = 1920
+            guard let ssCG = screenshot.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+            let ssSize = CGSize(width: ssCG.width, height: ssCG.height)
+
+            // Size the canvas from the screenshot pixels so Retina captures are not downscaled.
             let ssAspect = ssSize.width / ssSize.height
-            let baseH = baseW / ssAspect
-            let padding = baseW * paddingPercent
-            let outW = baseW
-            let outH = baseH
+            let outW = ceil(ssSize.width / (1 - paddingPercent * 2))
+            let outH = ceil(outW / ssAspect)
+            let padding = outW * paddingPercent
+            let radiusScale = outW / baseCanvasWidth
             let outSize = CGSize(width: outW, height: outH)
 
             guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
@@ -80,6 +82,7 @@ enum BackgroundCompositor {
                       space: colorSpace,
                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
                   ) else { return nil }
+            ctx.interpolationQuality = .high
 
             // 1. Draw background — scale-to-fill and center-crop
             if let bgCG = bgImage.cgImage(forProposedRect: nil, context: nil, hints: nil) {
@@ -108,14 +111,13 @@ enum BackgroundCompositor {
                 width: scaledW,
                 height: scaledH
             )
-            if let ssCG = screenshot.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-                ctx.saveGState()
-                let clipPath = CGPath(roundedRect: ssRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-                ctx.addPath(clipPath)
-                ctx.clip()
-                ctx.draw(ssCG, in: ssRect)
-                ctx.restoreGState()
-            }
+            ctx.saveGState()
+            let scaledCornerRadius = cornerRadius * radiusScale
+            let clipPath = CGPath(roundedRect: ssRect, cornerWidth: scaledCornerRadius, cornerHeight: scaledCornerRadius, transform: nil)
+            ctx.addPath(clipPath)
+            ctx.clip()
+            ctx.draw(ssCG, in: ssRect)
+            ctx.restoreGState()
 
             // 4. Extract and encode as PNG
             guard let resultImage = ctx.makeImage() else { return nil }

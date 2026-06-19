@@ -13,7 +13,7 @@ final class ScreenCaptureService: Sendable {
     /// Interactive region capture — user selects area
     func captureRegion() async throws -> URL {
         let path = temporaryPath(prefix: "region")
-        try await runScreenCapture(args: ["-i", "-x", path])
+        try await runScreenCapture(args: ["-i", "-x", "-t", "png", path])
         guard FileManager.default.fileExists(atPath: path) else {
             throw CaptureError.cancelled
         }
@@ -23,7 +23,7 @@ final class ScreenCaptureService: Sendable {
     /// Fullscreen capture of main display
     func captureFullscreen() async throws -> URL {
         let path = temporaryPath(prefix: "fullscreen")
-        try await runScreenCapture(args: ["-x", path])
+        try await runScreenCapture(args: ["-x", "-t", "png", path])
         guard FileManager.default.fileExists(atPath: path) else {
             throw CaptureError.failed("Fullscreen capture failed")
         }
@@ -33,7 +33,7 @@ final class ScreenCaptureService: Sendable {
     /// Window capture — user clicks a window
     func captureWindow() async throws -> URL {
         let path = temporaryPath(prefix: "window")
-        try await runScreenCapture(args: ["-i", "-w", "-x", path])
+        try await runScreenCapture(args: ["-i", "-w", "-x", "-t", "png", path])
         guard FileManager.default.fileExists(atPath: path) else {
             throw CaptureError.cancelled
         }
@@ -43,7 +43,7 @@ final class ScreenCaptureService: Sendable {
     /// Region capture for OCR — captures then returns the image path
     func captureForOCR() async throws -> URL {
         let path = temporaryPath(prefix: "ocr")
-        try await runScreenCapture(args: ["-i", "-x", path])
+        try await runScreenCapture(args: ["-i", "-x", "-t", "png", path])
         guard FileManager.default.fileExists(atPath: path) else {
             throw CaptureError.cancelled
         }
