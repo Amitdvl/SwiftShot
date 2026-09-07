@@ -110,7 +110,13 @@ final class AppState {
             guard sessionID == token else { return }
             phase = .idle
             if error is CancellationError { statusMessage = nil; return }
-            report(error.localizedDescription, retry: { [weak self] in Task { await self?.capture(mode: mode) } })
+            var openSettings: (() -> Void)?
+            if let failure = error as? CaptureError, case .permissionDenied = failure {
+                openSettings = {
+                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
+                }
+            }
+            report(error.localizedDescription, retry: { [weak self] in Task { await self?.capture(mode: mode) } }, openSettings: openSettings)
         }
     }
 
@@ -372,9 +378,9 @@ final class AppState {
         if overlay.activeDocument?.id == document.id { overlay.showStatus(message, isError: isError) }
     }
 
-    private func report(_ message: String, retry: (() -> Void)? = nil, chooseFolder: (() -> Void)? = nil) {
+    private func report(_ message: String, retry: (() -> Void)? = nil, chooseFolder: (() -> Void)? = nil, openSettings: (() -> Void)? = nil) {
         statusMessage = message
         overlay.showStatus(message, isError: true)
-        if presentsUI { NotificationService.showError(message, retry: retry, chooseFolder: chooseFolder) }
+        if presentsUI { NotificationService.showError(message, retry: retry, chooseFolder: chooseFolder, openSettings: openSettings) }
     }
 }

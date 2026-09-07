@@ -11,6 +11,7 @@ struct CaptureOverlayView: View {
     @State private var draftAnnotation: CaptureAnnotation?
     @State private var textAnchor: CGPoint?
     @State private var textValue = ""
+    @State private var textFocusRequest = 0
     @State private var toolbarOrigin: CGPoint?
     @State private var toolbarDragOrigin: CGPoint?
     @FocusState private var textFocused: Bool
@@ -243,7 +244,14 @@ struct CaptureOverlayView: View {
                 }
                 .padding(.horizontal, 12).frame(height: 48)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-                .onAppear { textFocused = true }
+                .task(id: textFocusRequest) {
+                    // The field must enter the responder hierarchy before requesting focus.
+                    // A new placement also needs a false → true transition when the row already exists.
+                    textFocused = false
+                    await Task.yield()
+                    guard !Task.isCancelled, textAnchor != nil else { return }
+                    textFocused = true
+                }
             }
             if !session.status.isEmpty {
                 HStack(spacing: 7) {
@@ -306,9 +314,10 @@ struct CaptureOverlayView: View {
             } else if let annotation = draftAnnotation, hypot(annotation.end.x - annotation.start.x, annotation.end.y - annotation.start.y) >= 2 {
                 document.change { $0.annotations.append(annotation) }; session.changed()
             } else if session.annotationTool == .text, let screenshotFrame, screenshotFrame.contains(value.location) {
+                textFocused = false
                 textAnchor = sourcePoint(value.location)
                 textValue = ""
-                textFocused = true
+                textFocusRequest += 1
             }
         } else {
             if session.mode == .window {

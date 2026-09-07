@@ -22,7 +22,7 @@ The original screenshot remains immutable. PNG exports keep native screenshot pi
 
 Failed saves retain the capture and show Retry and Choose Folder. Captures and edits are also stored locally in `~/Library/Application Support/SwiftShot/Recovery` for recovery after relaunch. Unsaved captures remain until explicitly discarded; older saved recovery copies are pruned. Closing the overlay does not discard a capture. This local recovery storage contains screenshot content, including original pixels before crop/redaction; exported PNGs contain only the flattened result.
 
-No accounts or cloud service are required. SwiftShot needs macOS Screen Recording permission. If denied, enable SwiftShot in **System Settings → Privacy & Security → Screen & System Audio Recording**, then reopen it if macOS requests that.
+No accounts or cloud service are required. SwiftShot needs macOS Screen Recording permission. A denied capture offers **Open Settings** and **Retry**. Enable SwiftShot in **System Settings → Privacy & Security → Screen & System Audio Recording**, then reopen it if macOS requests that.
 
 ## Shortcuts
 
@@ -45,6 +45,8 @@ brew install xcodegen
 ```
 
 The script generates the Xcode project, builds Release, packages `dist/SwiftShot.app`, and launches it. Use `--build` to package without launching, `--verify` to check launch, or `--debug`, `--logs`, and `--telemetry` for diagnostics. Codex's Run action invokes the same script. Build logs remain under `build/`.
+
+Local builds use ad-hoc signing. Rebuilding changes their signing identity, so Screen Recording approval may need renewal even when System Settings still shows SwiftShot enabled. Keep the final build stable while testing permissions. Consistent certificate-based signing is needed for durable permission continuity across builds; see [Apple's code-signing requirements](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements).
 
 For the optimized native test suite, use a separate test-host build directory. The command-line hardened-runtime override permits Xcode's ad-hoc signed XCTest injection; it does not change the production Release configuration.
 

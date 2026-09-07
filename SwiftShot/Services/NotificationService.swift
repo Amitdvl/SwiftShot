@@ -11,8 +11,8 @@ enum NotificationService {
         show(title: title, message: subtitle, isError: false, retry: nil, chooseFolder: nil)
     }
 
-    static func showError(_ message: String, retry: (() -> Void)? = nil, chooseFolder: (() -> Void)? = nil) {
-        show(title: "Couldn't finish", message: message, isError: true, retry: retry, chooseFolder: chooseFolder)
+    static func showError(_ message: String, retry: (() -> Void)? = nil, chooseFolder: (() -> Void)? = nil, openSettings: (() -> Void)? = nil) {
+        show(title: "Couldn't finish", message: message, isError: true, retry: retry, chooseFolder: chooseFolder, openSettings: openSettings)
     }
 
     static func dismiss() {
@@ -23,12 +23,13 @@ enum NotificationService {
         panel = nil
     }
 
-    private static func show(title: String, message: String, isError: Bool, retry: (() -> Void)?, chooseFolder: (() -> Void)?) {
+    private static func show(title: String, message: String, isError: Bool, retry: (() -> Void)?, chooseFolder: (() -> Void)?, openSettings: (() -> Void)? = nil) {
         dismiss()
         let ownToken = token
         let view = StatusToastView(title: title, message: message, isError: isError,
             retry: retry.map { action in { dismiss(); action() } },
-            chooseFolder: chooseFolder.map { action in { dismiss(); action() } }, onClose: dismiss)
+            chooseFolder: chooseFolder.map { action in { dismiss(); action() } },
+            openSettings: openSettings.map { action in { dismiss(); action() } }, onClose: dismiss)
         let hosting = NSHostingView(rootView: view)
         let size = hosting.fittingSize
         let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main
@@ -68,6 +69,7 @@ private struct StatusToastView: View {
     let isError: Bool
     let retry: (() -> Void)?
     let chooseFolder: (() -> Void)?
+    let openSettings: (() -> Void)?
     let onClose: () -> Void
 
     var body: some View {
@@ -82,10 +84,11 @@ private struct StatusToastView: View {
                 Spacer(minLength: 0)
                 Button(action: onClose) { Image(systemName: "xmark") }.buttonStyle(.plain).help("Dismiss")
             }
-            if retry != nil || chooseFolder != nil {
+            if retry != nil || chooseFolder != nil || openSettings != nil {
                 HStack {
                     if let retry { Button("Retry", action: retry).buttonStyle(.borderedProminent) }
                     if let chooseFolder { Button("Choose Folder…", action: chooseFolder) }
+                    if let openSettings { Button("Open Settings", action: openSettings) }
                 }
             }
         }
