@@ -1,211 +1,97 @@
 import AppKit
 import SwiftUI
 
-// MARK: - Notification Service
-
 @MainActor
 enum NotificationService {
-
     private static var panel: NSPanel?
-    private static var actionPanel: NSPanel?
-    private static var autoSaveTask: Task<Void, Never>?
-
-    static func requestAuthorization() {}
-
-    // MARK: - Capture Action Panel
-
-    static func showCaptureActions(onCopy: @escaping () -> Void, onSave: @escaping () -> Void) {
-        dismissCaptureActions()
-
-        let view = CaptureActionView(
-            onCopy: {
-                NotificationService.dismissCaptureActions()
-                onCopy()
-            },
-            onSave: {
-                NotificationService.dismissCaptureActions()
-                onSave()
-            }
-        )
-        let hosting = NSHostingView(rootView: view)
-        hosting.setFrameSize(hosting.fittingSize)
-
-        guard let screen = NSScreen.main else { return }
-        let screenFrame = screen.visibleFrame
-        let x = screenFrame.maxX - hosting.frame.width - 16
-        let y = screenFrame.maxY - hosting.frame.height - 12
-
-        let p = NSPanel(
-            contentRect: NSRect(x: x, y: y, width: hosting.frame.width, height: hosting.frame.height),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        p.contentView = hosting
-        p.backgroundColor = .clear
-        p.isOpaque = false
-        p.level = .floating
-        p.isFloatingPanel = true
-        p.hasShadow = true
-        p.collectionBehavior = [.canJoinAllSpaces, .stationary]
-        p.ignoresMouseEvents = false
-        p.alphaValue = 0
-
-        p.orderFrontRegardless()
-        actionPanel = p
-
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.25
-            p.animator().alphaValue = 1
-        }
-
-        // Auto-save after 6 seconds if no interaction
-        autoSaveTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(6))
-            guard actionPanel != nil else { return }
-            NotificationService.dismissCaptureActions()
-            onSave()
-        }
-    }
-
-    static func dismissCaptureActions() {
-        autoSaveTask?.cancel()
-        autoSaveTask = nil
-        if let p = actionPanel {
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.2
-                p.animator().alphaValue = 0
-            }
-            p.orderOut(nil)
-            p.contentView = nil
-            actionPanel = nil
-        }
-    }
-
-    // MARK: - Toast (used for OCR status etc.)
+    private static var lifetime: Task<Void, Never>?
+    private static var token = UUID()
 
     static func showToast(title: String, subtitle: String) {
-        dismissToast()
-
-        let toast = ToastView(title: title, subtitle: subtitle)
-        let hosting = NSHostingView(rootView: toast)
-        hosting.setFrameSize(hosting.fittingSize)
-
-        guard let screen = NSScreen.main else { return }
-        let screenFrame = screen.visibleFrame
-        let x = screenFrame.maxX - hosting.frame.width - 16
-        let y = screenFrame.maxY - hosting.frame.height - 12
-
-        let p = NSPanel(
-            contentRect: NSRect(x: x, y: y, width: hosting.frame.width, height: hosting.frame.height),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        p.contentView = hosting
-        p.backgroundColor = .clear
-        p.isOpaque = false
-        p.level = .floating
-        p.isFloatingPanel = true
-        p.hasShadow = true
-        p.collectionBehavior = [.canJoinAllSpaces, .stationary]
-        p.ignoresMouseEvents = true
-        p.alphaValue = 0
-
-        p.orderFrontRegardless()
-        panel = p
-
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.25
-            p.animator().alphaValue = 1
-        }
-
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(3))
-            await NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.3
-                p.animator().alphaValue = 0
-            }
-            dismissToast()
-        }
+        show(title: title, message: subtitle, isError: false, retry: nil, chooseFolder: nil)
     }
 
-    private static func dismissToast() {
+    static func showError(_ message: String, retry: (() -> Void)? = nil, chooseFolder: (() -> Void)? = nil) {
+        show(title: "Couldn't finish", message: message, isError: true, retry: retry, chooseFolder: chooseFolder)
+    }
+
+    static func dismiss() {
+        lifetime?.cancel()
+        lifetime = nil
+        token = UUID()
         panel?.orderOut(nil)
-        panel?.contentView = nil
         panel = nil
     }
-}
 
-// MARK: - Capture Action View
-
-private struct CaptureActionView: View {
-    let onCopy: () -> Void
-    let onSave: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "camera.viewfinder")
-                .font(.title2)
-                .foregroundStyle(.primary)
-
-            Text("Screenshot ready")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.primary)
-
-            Spacer(minLength: 16)
-
-            Button("Copy") {
-                onCopy()
-            }
-            .controlSize(.small)
-
-            Button("Save") {
-                onSave()
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
+    private static func show(title: String, message: String, isError: Bool, retry: (() -> Void)?, chooseFolder: (() -> Void)?) {
+        dismiss()
+        let ownToken = token
+        let view = StatusToastView(title: title, message: message, isError: isError,
+            retry: retry.map { action in { dismiss(); action() } },
+            chooseFolder: chooseFolder.map { action in { dismiss(); action() } }, onClose: dismiss)
+        let hosting = NSHostingView(rootView: view)
+        let size = hosting.fittingSize
+        let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main
+        guard let screen else { return }
+        let frame = NSRect(x: screen.visibleFrame.maxX - size.width - 20, y: screen.visibleFrame.maxY - size.height - 20, width: size.width, height: size.height)
+        let window = NSPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        window.contentView = hosting
+        window.backgroundColor = .clear
+        window.isOpaque = false
+        window.hasShadow = true
+        window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 2)
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        window.alphaValue = 0
+        window.orderFrontRegardless()
+        panel = window
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.16
+            window.animator().alphaValue = 1
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .modifier(LiquidGlassModifier())
+        guard !isError else { return }
+        lifetime = Task { @MainActor in
+            do { try await Task.sleep(for: .seconds(3)) } catch { return }
+            guard token == ownToken else { return }
+            await NSAnimationContext.runAnimationGroup { context in
+                context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.18
+                window.animator().alphaValue = 0
+            }
+            guard token == ownToken else { return }
+            dismiss()
+        }
     }
 }
 
-// MARK: - Toast View
-
-private struct ToastView: View {
+private struct StatusToastView: View {
     let title: String
-    let subtitle: String
+    let message: String
+    let isError: Bool
+    let retry: (() -> Void)?
+    let chooseFolder: (() -> Void)?
+    let onClose: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "camera.viewfinder")
-                .font(.title2)
-                .foregroundStyle(.primary)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.primary)
-                Text(subtitle)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                    .foregroundStyle(isError ? Color.orange : Color.green)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.headline)
+                    Text(message).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Button(action: onClose) { Image(systemName: "xmark") }.buttonStyle(.plain).help("Dismiss")
+            }
+            if retry != nil || chooseFolder != nil {
+                HStack {
+                    if let retry { Button("Retry", action: retry).buttonStyle(.borderedProminent) }
+                    if let chooseFolder { Button("Choose Folder…", action: chooseFolder) }
+                }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .modifier(LiquidGlassModifier())
-    }
-}
-
-private struct LiquidGlassModifier: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(macOS 26.0, *) {
-            content.glassEffect(.regular, in: .capsule)
-        } else {
-            content.background(.ultraThinMaterial, in: Capsule())
-        }
+        .padding(16)
+        .frame(width: 340, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.white.opacity(0.12)))
     }
 }

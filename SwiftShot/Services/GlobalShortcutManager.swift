@@ -26,7 +26,8 @@ final class GlobalShortcutManager {
 
     // MARK: - Public
 
-    func register(keyCode: UInt32, modifiers: UInt32, handler: @escaping () -> Void) {
+    @discardableResult
+    func register(keyCode: UInt32, modifiers: UInt32, handler: @escaping () -> Void) -> Bool {
         let id = nextId
         nextId += 1
 
@@ -50,7 +51,10 @@ final class GlobalShortcutManager {
 
         if status == noErr, let ref = hotKeyRef {
             hotKeyRefs.append(ref)
+            return true
         }
+        handlers.removeValue(forKey: id)
+        return false
     }
 
     func unregisterAll() {

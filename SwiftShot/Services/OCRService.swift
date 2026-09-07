@@ -1,59 +1,14 @@
-import Foundation
-import Vision
 import AppKit
+import Vision
 
-// MARK: - OCR Service (Vision Framework)
-
-final class OCRService: Sendable {
+actor OCRService: TextRecognizing {
     static let shared = OCRService()
 
-    private init() {}
-
-    /// Recognize text from an image file using macOS Vision framework
-    func recognizeText(from imageURL: URL) async throws -> String {
-        guard let image = NSImage(contentsOf: imageURL),
-              let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            throw OCRError.invalidImage
-        }
-
-        return try await withCheckedThrowingContinuation { continuation in
-            let request = VNRecognizeTextRequest { request, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-
-                guard let observations = request.results as? [VNRecognizedTextObservation] else {
-                    continuation.resume(returning: "")
-                    return
-                }
-
-                let text = observations.compactMap { observation in
-                    observation.topCandidates(1).first?.string
-                }.joined(separator: "\n")
-
-                continuation.resume(returning: text)
-            }
-
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = true
-
-            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-            do {
-                try handler.perform([request])
-            } catch {
-                continuation.resume(throwing: error)
-            }
-        }
-    }
-}
-
-enum OCRError: LocalizedError {
-    case invalidImage
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidImage: "Could not load image for OCR"
-        }
+    func recognizeText(in image: CGImage) throws -> String {
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = true
+        try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+        return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
     }
 }

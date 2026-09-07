@@ -1,39 +1,25 @@
 import AppKit
-import Foundation
 
-// MARK: - Clipboard Service
+@MainActor
+protocol CaptureClipboard {
+    func copyPNGData(_ data: Data) -> Bool
+    func copyText(_ text: String) -> Bool
+}
 
-final class ClipboardService: Sendable {
+@MainActor
+final class ClipboardService: CaptureClipboard {
     static let shared = ClipboardService()
+    private let pasteboard: NSPasteboard
+    init(pasteboard: NSPasteboard = .general) { self.pasteboard = pasteboard }
 
-    private init() {}
-
-    /// Copy an image file to the clipboard
-    func copyImage(from url: URL) {
-        guard let image = NSImage(contentsOf: url) else { return }
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.writeObjects([image])
+    func copyPNGData(_ data: Data) -> Bool {
+        guard !data.isEmpty else { return false }
+        pasteboard.clearContents()
+        return pasteboard.setData(data, forType: .png)
     }
 
-    /// Copy an NSImage to the clipboard
-    func copyImage(_ image: NSImage) {
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.writeObjects([image])
-    }
-
-    /// Copy text to the clipboard
-    func copyText(_ text: String) {
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.setString(text, forType: .string)
-    }
-
-    /// Copy a PNG data blob to clipboard
-    func copyPNGData(_ data: Data) {
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.setData(data, forType: .png)
+    func copyText(_ text: String) -> Bool {
+        pasteboard.clearContents()
+        return pasteboard.setString(text, forType: .string)
     }
 }

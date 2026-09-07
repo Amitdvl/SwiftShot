@@ -2,70 +2,66 @@ import SwiftUI
 
 @main
 struct SwiftShotApp: App {
-    @State private var appState = AppState()
+    @State private var appState = AppState.shared
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
         MenuBarExtra("SwiftShot", systemImage: "camera.viewfinder") {
-            MenuBarView()
-                .environment(appState)
-                .onAppear {
-                    appDelegate.appState = appState
-                    appState.registerShortcuts()
-                }
-        }
-
-        Settings {
-            PreferencesView()
-                .environment(appState)
+            MenuBarView().environment(appState)
         }
     }
 }
-
-// MARK: - App Delegate
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    var appState: AppState?
-
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        AppState.shared.showPreferences()
+        return true
+    }
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.regular)
+        NSApp.setActivationPolicy(.accessory)
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+        AppState.shared.start()
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let document = AppState.shared.lastDocument else { return .terminateNow }
+        Task { @MainActor in
+            let preserved = await AppState.shared.preserve(document)
+            if preserved { sender.reply(toApplicationShouldTerminate: true) }
+            else { sender.reply(toApplicationShouldTerminate: false) }
+        }
+        return .terminateLater
     }
 }
-
-// MARK: - Menu Bar View
 
 struct MenuBarView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
-        Button("Capture Region") {
-            Task { await appState.capture(mode: .region) }
+        ForEach(CaptureMode.allCases, id: \.self) { mode in
+            Button { Task { await appState.capture(mode: mode) } } label: {
+                Label(mode.label, systemImage: mode.icon)
+            }
+            .disabled(appState.isCapturing)
         }
-
-        Button("Capture Fullscreen") {
-            Task { await appState.capture(mode: .fullscreen) }
-        }
-
-        Button("Capture Window") {
-            Task { await appState.capture(mode: .window) }
-        }
-
-        Button("OCR Region") {
-            Task { await appState.capture(mode: .ocr) }
-        }
-
         Divider()
-
-        SettingsLink {
-            Text("Preferences...")
+        Button("Reopen Last Capture") { Task { await appState.reopenLastCapture() } }
+            .disabled(appState.lastDocument == nil && appState.recoveredRecords.isEmpty)
+        let unsaved = appState.recoveredRecords.filter { $0.savedPath == nil }
+        if !unsaved.isEmpty {
+            Menu("Recover Unsaved (\(unsaved.count))") {
+                ForEach(unsaved) { record in
+                    Button(record.createdAt.formatted(date: .abbreviated, time: .standard)) {
+                        Task { await appState.reopenRecovery(record.id) }
+                    }
+                }
+            }
         }
-        .keyboardShortcut(",", modifiers: [.command])
-
+        if let url = appState.lastDocument?.savedURL {
+            Button("Show Last Save in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+        }
         Divider()
-
-        Button("Quit SwiftShot") {
-            NSApp.terminate(nil)
-        }
-        .keyboardShortcut("q", modifiers: [.command])
+        Button("Settings…") { appState.showPreferences() }.keyboardShortcut(",", modifiers: [.command])
+        Button("Quit SwiftShot") { NSApp.terminate(nil) }.keyboardShortcut("q", modifiers: [.command])
     }
 }

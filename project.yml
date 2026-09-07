@@ -37,3 +37,15 @@ targets:
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
     entitlements:
       path: SwiftShot.entitlements
+  SwiftShotTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - SwiftShotTests
+    dependencies:
+      - target: SwiftShot
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/SwiftShot.app/Contents/MacOS/SwiftShot"
+        BUNDLE_LOADER: "$(TEST_HOST)"
