@@ -1,5 +1,20 @@
 # SwiftShot rebuild
 
+## Latest live verification (2026-09-08)
+
+- The exact production Release app at `dist/SwiftShot.app` now acquires the screen successfully through normal Screen Recording approval. No permission database or signing policy was modified. Only the Release process remained running during controlled capture checks.
+- Fresh Region selection reached the styled editor; Escape dismissed it. Window selection highlighted a 2940 × 1630 window and opened its captured image in the editor. Fullscreen opened the complete 2940 × 1912 Retina display, with the remembered 96-pixel padding producing 3132 × 2104 output. These are actual acquisitions, separate from the earlier recovery fixtures.
+- Fresh OCR exercised both outcomes: a clipped text selection displayed “No text found” and retained its editor; a larger selection successfully populated the text clipboard. Private recognized text is not included in this report.
+- The user physically verified ⌘⇧2. Their initial failure used Control instead of Shift; it was not a registration defect. Region and Window are currently enabled, while Fullscreen and OCR bindings remain disabled by user preference. Targeted Computer Use key delivery is not evidence of global keyboard behavior.
+- Production capture logs measured Region acquisition at 45–116 ms, Window at 174 ms and Fullscreen at 50 ms on the available display. The Window editor process had 141,824 KiB resident memory after selection. These are acquisition timings and a sampled resident size, not instrumented first-frame latency or peak/many-window memory measurements.
+- A fresh incremental Release build/package and strict signature verification passed. Executable SHA-256 remained `898c90ecefe9040ebb53d1b5a9e491289083fbb490ae7ceee05627128257065e`, preserving the tested signing identity.
+- The user physically dragged the disposable synthetic `SwiftShot-Drop-QA.png` from Finder into the Backgrounds grid and confirmed its tile appeared. The test image remains available in the library; existing imports and the selected `astras` background were not removed or reset by the agent.
+- The user explicitly waived multi-monitor, mixed-scale and hotplug hardware checks. Those remain untested and do not block acceptance.
+
+Lead decision: **Done for the agreed single-screen functional acceptance.** The prior 52-test pass, pixel/export/recovery evidence and independent code reviews remain applicable: this continuation changed documentation only. Precise first-frame latency, peak memory under many visible windows, shortcut conflict behavior against another running app and Spaces transitions have not been independently measured live; automated conflict coverage and the measured acquisition timings above must not be presented as those tests.
+
+The entries below retain the earlier audit history; their permission-blocked statements are superseded by this checkpoint.
+
 ## Lead contract
 
 Outcome: freeze-first native capture with an in-place editing toolbar, managed backgrounds, native-pixel exports, and recoverable copy/save flows. Preserve fullscreen and OCR. Minimum OS remains macOS 14.
