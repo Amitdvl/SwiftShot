@@ -1,60 +1,43 @@
-<img width="128" height="128" alt="SwiftShot icon" src="https://github.com/user-attachments/assets/9ed7fb63-6703-4cb4-934d-d9a171c2d9cd" />
+<img src="docs/assets/swiftshot-icon.png" width="128" height="128" alt="SwiftShot app icon" />
 
 # SwiftShot
 
-A native macOS screenshot tool with a frozen-screen selection canvas and compact editing toolbar.
+Capture, annotate, and copy screenshots from your Mac’s menu bar.
 
-## Capture and edit
+Select a region on a frozen screen, capture a window or display, or copy text from your screen. Edit beside the capture, then copy the result or save a PNG. Native Swift and SwiftUI. No account or cloud service required.
 
-Use the menu bar or **⌘⇧2** to capture a region. SwiftShot acquires display images before showing the selection overlay. Drag a region, click a window in Window mode, or capture the display under the pointer in Fullscreen mode. A selection stays on its starting display; spanning windows are clipped to that display.
+## Capture to clipboard
 
-The attached toolbar provides **Copy, Save, Background, Annotate, Crop, and More**. Draw arrows, rectangles, text, or solid redactions; adjust the crop; and undo or redo edits. Copy leaves the capture open so you can save it too. Save writes a unique PNG and closes the unchanged editor after success. Escape dismisses the active tool/panel before closing the editor. Use ⌘C, ⌘S, ⌘Z, and ⇧⌘Z while editing; text fields retain their native shortcuts.
+Press **⌘⇧2**, select a region, and edit with the attached toolbar:
 
-**Copy Text from Screen** in the menu bar recognizes a selected region with Apple Vision; More offers a retry if recognition fails. **Reopen Last Capture** brings the latest capture back for editing or saving. Optional **Immediate Copy** in Settings copies and closes after selection.
+- **Explain:** add arrows, rectangles, and text.
+- **Hide details:** crop or cover sensitive areas with solid redactions.
+- **Style:** add a background, padding, rounded corners, and a shadow.
+- **Export:** copy with **⌘C** or save with **⌘S**. PNGs preserve native screenshot resolution; backgrounds expand the canvas.
 
-## Backgrounds and sharpness
-
-Import multiple images or drop them into the background picker. Imports are validated and copied into SwiftShot's Application Support folder with stable identifiers. Remove a background with Undo Removal; hidden bundled backgrounds can be restored from the picker menu. Original files are never deleted. Adjust padding, corner radius, and shadow beside the capture.
-
-The original screenshot remains immutable. PNG exports keep native screenshot pixel dimensions and integer placement, expanding the canvas for backgrounds instead of shrinking the screenshot. Background images scale to fill that canvas. Redactions are flattened as opaque pixels. Exports are limited to 64 million pixels to bound memory use.
-
-## Recovery and privacy
-
-Failed saves retain the capture and show Retry and Choose Folder. Captures and edits are also stored locally in `~/Library/Application Support/SwiftShot/Recovery` for recovery after relaunch. Unsaved captures remain until explicitly discarded; older saved recovery copies are pruned. Closing the overlay does not discard a capture. This local recovery storage contains screenshot content, including original pixels before crop/redaction; exported PNGs contain only the flattened result.
-
-No accounts or cloud service are required. SwiftShot needs macOS Screen Recording permission. A denied capture offers **Open Settings** and **Retry**. Enable SwiftShot in **System Settings → Privacy & Security → Screen & System Audio Recording**, then reopen it if macOS requests that.
-
-## Shortcuts
-
-| Action | Default binding | Initially enabled |
-| --- | --- | --- |
-| Region | ⌘⇧2 | Yes |
-| Fullscreen | ⌘⇧F | No |
-| Window | ⌘⇧D | No |
-| OCR region | ⌘⇧O | No |
-
-Enable bindings in Settings → Shortcuts. Registration conflicts are displayed there. Existing save-folder preferences are preserved, and the previous mislabeled default modifier combination is migrated.
+Use **Copy Text from Screen** in the menu bar for OCR, or **Reopen Last Capture** to keep editing. Enable window, fullscreen, and OCR keyboard shortcuts in **Settings → Shortcuts**.
 
 ## Build and run
 
-Requires macOS 14+, Xcode, and XcodeGen.
+Requires **macOS 14+**, Xcode, and [XcodeGen](https://github.com/yonaskolb/XcodeGen). There is no packaged release yet.
 
 ```sh
+git clone https://github.com/Amitdvl/SwiftShot.git
+cd SwiftShot
 brew install xcodegen
 ./script/build_and_run.sh
 ```
 
-The script generates the Xcode project, builds Release, packages `dist/SwiftShot.app`, and launches it. Use `--build` to package without launching, `--verify` to check launch, or `--debug`, `--logs`, and `--telemetry` for diagnostics. Codex's Run action invokes the same script. Build logs remain under `build/`.
+The script builds and launches the app. Grant SwiftShot Screen Recording access in **System Settings → Privacy & Security**, then retry the capture. Local ad-hoc builds may need permission again after rebuilding.
 
-Local builds use ad-hoc signing. Rebuilding changes their signing identity, so Screen Recording approval may need renewal even when System Settings still shows SwiftShot enabled. Keep the final build stable while testing permissions. Consistent certificate-based signing is needed for durable permission continuity across builds; see [Apple's code-signing requirements](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements).
+## Your captures stay local
 
-For the optimized native test suite, use a separate test-host build directory. The command-line hardened-runtime override permits Xcode's ad-hoc signed XCTest injection; it does not change the production Release configuration.
+Captures and edits are stored on your Mac for recovery after relaunch. Closing the editor does not delete them.
 
-```sh
-xcodegen generate
-xcodebuild -project SwiftShot.xcodeproj -scheme SwiftShot \
-  -configuration Debug SWIFT_OPTIMIZATION_LEVEL=-O ENABLE_HARDENED_RUNTIME=NO \
-  -destination platform=macOS -derivedDataPath build/tests test
-```
+**Recovery retains original pixels, including content behind crops and redactions.** Exported PNGs contain only the flattened result. Recovery files live in `~/Library/Application Support/SwiftShot/Recovery`.
 
-See [REBUILD_PROGRESS.md](REBUILD_PROGRESS.md) for verification evidence and outstanding hardware/runtime checks.
+## In development
+
+Quick Copy, searchable history, pinned captures, scrolling capture, workflow presets, and Apple Shortcuts integration are being tested locally and are not yet in the published source.
+
+[Report a bug or request a feature](https://github.com/Amitdvl/SwiftShot/issues) · [MIT license](LICENSE)
