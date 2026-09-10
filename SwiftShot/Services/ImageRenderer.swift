@@ -282,7 +282,7 @@ actor ImageRenderer: CaptureRendering {
             // as soon as padding is enabled. Treat the screenshot itself as
             // the white-backed card that a raw PNG is normally presented on;
             // only the padding is decorative.
-            if framed {
+            if framed && !castsShadow {
                 context.setFillColor(CGColor(gray: 1, alpha: 1))
                 context.fill(destination)
             }
@@ -300,6 +300,23 @@ actor ImageRenderer: CaptureRendering {
                 context.endTransparencyLayer()
             }
             context.restoreGState()
+            if castsShadow {
+                // Do not make the white screenshot backing part of the shadow
+                // transparency layer: only the captured source alpha and its
+                // public annotations may determine the shadow. Paint the card
+                // above that shadow instead, so translucent type still has a
+                // stable white backing without exposing redacted source alpha.
+                context.saveGState()
+                context.addPath(outline)
+                context.clip()
+                context.setFillColor(CGColor(gray: 1, alpha: 1))
+                context.fill(destination)
+                context.interpolationQuality = .none
+                context.draw(source, in: destination)
+                AnnotationDrawing.draw(annotations: edits.annotations, in: context, crop: crop,
+                    destination: destination, includeRedactions: false)
+                context.restoreGState()
+            }
             // Redaction is always opaque, pixel-aligned and applied after every other layer.
             // Do not apply the antialiased corner mask a second time: partial coverage
             // could leave source pixels visible under the redaction at rounded edges.

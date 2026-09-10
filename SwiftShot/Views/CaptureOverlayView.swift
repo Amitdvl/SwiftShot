@@ -134,7 +134,13 @@ struct CaptureOverlayView: View {
     }
 
     private func selectedImage(_ image: CGImage, crop: CGRect, screenshot: CGRect, canvas: CGRect) -> some View {
-        let clippedSource = ZStack {
+        let sourceLayer = ZStack {
+            Image(decorative: image, scale: 1).resizable().interpolation(.none)
+            AnnotationCanvasView(annotations: previewAnnotations.filter { $0.kind != .redact }, crop: crop)
+        }
+        .frame(width: screenshot.width, height: screenshot.height)
+        .clipShape(RoundedRectangle(cornerRadius: isStyled ? CGFloat(session.effectiveStyle.cornerRadius) * screenshot.width / crop.width : 0))
+        let cardLayer = ZStack {
             // Keep the editor's card appearance identical to the exported
             // bitmap. Window captures contain translucent vibrancy and text
             // edge pixels; revealing the chosen decorative image beneath them
@@ -160,7 +166,7 @@ struct CaptureOverlayView: View {
             }
             if isStyled && session.effectiveStyle.shadow > 0 {
                 ZStack {
-                    clippedSource
+                    sourceLayer
                     // Redact outside the rounded clip, then flatten this group
                     // BEFORE shadowing it. Hidden alpha must not cast a shadow.
                     AnnotationCanvasView(annotations: previewAnnotations.filter { $0.kind == .redact }, crop: crop)
@@ -171,9 +177,17 @@ struct CaptureOverlayView: View {
                 .shadow(color: .black.opacity(0.35), radius: CGFloat(session.effectiveStyle.shadow) * screenshot.width / crop.width,
                         y: CGFloat(session.effectiveStyle.shadow) * screenshot.width / crop.width / 3)
                 .position(x: screenshot.midX, y: screenshot.midY)
+                // The opaque card is intentionally above the source-alpha
+                // shadow. It stabilizes translucent text without turning the
+                // entire rounded card into a shadow silhouette.
+                cardLayer.position(x: screenshot.midX, y: screenshot.midY)
             } else {
                 // Raw/no-shadow preview keeps its original ungrouped path.
-                clippedSource.position(x: screenshot.midX, y: screenshot.midY)
+                if isStyled {
+                    cardLayer.position(x: screenshot.midX, y: screenshot.midY)
+                } else {
+                    sourceLayer.position(x: screenshot.midX, y: screenshot.midY)
+                }
             }
             AnnotationCanvasView(annotations: previewAnnotations.filter { $0.kind == .redact }, crop: crop)
                 .frame(width: screenshot.width, height: screenshot.height)
