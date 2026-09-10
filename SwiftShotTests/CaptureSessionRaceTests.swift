@@ -113,6 +113,40 @@ final class CaptureSessionRaceTests: XCTestCase {
         XCTAssertEqual(app.phase, .editing)
     }
 
+    func testManualCopyClosesTheCurrentEditor() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let presenter = RacePresenter()
+        let clipboard = RaceClipboard()
+        let app = fixture.state(capture: RaceCaptureService(image: fixture.image), presenter: presenter, clipboard: clipboard)
+        await app.capture(mode: .region)
+        let document = CaptureDocument(image: fixture.image)
+        presenter.select(document)
+
+        presenter.copy()
+
+        try await waitUntil { clipboard.png != nil }
+        try await waitUntil { presenter.activeDocument == nil }
+        XCTAssertEqual(app.phase, .idle)
+    }
+
+    func testManualSaveClosesTheCurrentEditor() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let presenter = RacePresenter()
+        let app = fixture.state(capture: RaceCaptureService(image: fixture.image), presenter: presenter)
+        app.appSettings.saveDirectory = fixture.root.appendingPathComponent("exports").path
+        await app.capture(mode: .region)
+        let document = CaptureDocument(image: fixture.image)
+        presenter.select(document)
+
+        presenter.save()
+
+        try await waitUntil { document.savedURL != nil }
+        try await waitUntil { presenter.activeDocument == nil }
+        XCTAssertEqual(app.phase, .idle)
+    }
+
     func testReopenSuspendedInPreservationCannotOverrideNewerCapture() async throws {
         let fixture = try Fixture()
         defer { fixture.cleanUp() }
@@ -208,6 +242,10 @@ final class CaptureSessionRaceTests: XCTestCase {
         app.appSettings.saveDirectory = fixture.root.appendingPathComponent("exports").path
         let document = CaptureDocument(image: fixture.image)
         app.lastDocument = document
+        // Establish the original before the exporter deliberately breaks later
+        // maintenance. Otherwise the fault injector races initial async recovery.
+        let preserved = await app.preserve(document)
+        XCTAssertTrue(preserved)
         await app.save(document)
         let export = try XCTUnwrap(document.savedURL)
         XCTAssertTrue(FileManager.default.fileExists(atPath: export.path))
@@ -282,12 +320,16 @@ private final class RacePresenter: CapturePresenting {
     var reopenCount = 0
     var dismissCount = 0
     private var onDocument: ((CaptureDocument) -> Void)?
+    private var onCopy: ((CaptureDocument) -> Void)?
+    private var onSave: ((CaptureDocument) -> Void)?
     private var onOCR: ((CaptureDocument) -> Void)?
     func select(_ document: CaptureDocument, recognize: Bool = false) {
         activeDocument = document
         onDocument?(document)
         if recognize { onOCR?(document) }
     }
+    func copy() { if let document = activeDocument { onCopy?(document) } }
+    func save() { if let document = activeDocument { onSave?(document) } }
     func present(screens: [FrozenScreen], mode: CaptureMode, style: CaptureStyle,
                  library: BackgroundLibrary, onDocument: @escaping (CaptureDocument) -> Void,
                  onCopy: @escaping (CaptureDocument) -> Void, onSave: @escaping (CaptureDocument) -> Void,
@@ -295,6 +337,8 @@ private final class RacePresenter: CapturePresenting {
                  onDiscard: @escaping (CaptureDocument) -> Void) {
         presentCount += 1
         self.onDocument = onDocument
+        self.onCopy = onCopy
+        self.onSave = onSave
         self.onOCR = onOCR
     }
     func reopen(document: CaptureDocument, library: BackgroundLibrary,
@@ -304,6 +348,8 @@ private final class RacePresenter: CapturePresenting {
         reopenCount += 1
         activeDocument = document
         self.onDocument = onDocument
+        self.onCopy = onCopy
+        self.onSave = onSave
         onOCR = nil
     }
     func dismiss() { dismissCount += 1; activeDocument = nil }

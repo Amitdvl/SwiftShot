@@ -87,7 +87,10 @@ final class GlobalShortcutManager {
 
             let manager = Unmanaged<GlobalShortcutManager>.fromOpaque(userData!).takeUnretainedValue()
             if let handler = manager.handlers[hotKeyID.id] {
+                let traceRunID = CaptureLatencyTrace.shared.activeRunID
+                CaptureLatencyTrace.shared.mark(.shortcutReceived, for: traceRunID)
                 DispatchQueue.main.async {
+                    CaptureLatencyTrace.shared.mark(.shortcutDispatched, for: traceRunID)
                     handler()
                 }
             }

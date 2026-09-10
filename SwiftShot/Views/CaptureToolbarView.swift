@@ -13,7 +13,8 @@ struct CaptureToolbarView: View {
             tool("Background", icon: "photo.on.rectangle", selected: session.activePopover == .backgrounds) { toggle(.backgrounds) }
             tool("Annotate", icon: "pencil.tip.crop.circle", selected: session.annotationTool != nil || session.activePopover == .annotations) { toggle(.annotations) }
             tool("Crop", icon: "crop", selected: session.cropMode) {
-                session.commitStyle(); session.cropMode.toggle(); session.annotationTool = nil; session.activePopover = nil
+                session.commitStyle(); session.cropMode.toggle(); session.annotationTool = nil
+                session.selectedAnnotationID = nil; session.activePopover = nil
             }
             tool("More", icon: "ellipsis", selected: session.activePopover == .more) { toggle(.more) }
         }
@@ -21,6 +22,7 @@ struct CaptureToolbarView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 17))
         .overlay { RoundedRectangle(cornerRadius: 17).strokeBorder(.primary.opacity(0.12), lineWidth: 0.5) }
         .shadow(color: .black.opacity(0.22), radius: 22, y: 8)
+        .disabled(session.isDragging)
     }
 
     private func toggle(_ value: OverlaySession.Popover) {
@@ -89,7 +91,43 @@ struct OverlayInspectorView: View {
                     annotation("Text", icon: "textformat", kind: .text)
                     annotation("Redact", icon: "rectangle.fill", kind: .redact)
                 }
+                HStack(spacing: 8) {
+                    annotation("Highlight", icon: "highlighter", kind: .highlighter)
+                    annotation("Steps", icon: "1.circle", kind: .numberedStep)
+                    annotation("Spotlight", icon: "light.beacon.max", kind: .spotlight)
+                    Button("Select") { session.annotationTool = nil }
+                        .frame(maxWidth: .infinity)
+                }
                 Text(annotationHint).font(.caption).foregroundStyle(.secondary)
+                if let selected = session.selectedAnnotation {
+                    Divider()
+                    if selected.kind == .text || selected.kind == .numberedStep {
+                        TextField("Text", text: Binding(get: { session.selectedAnnotation?.text ?? "" }, set: { text in
+                            document.updateAnnotation(id: selected.id) { $0.text = String(text.prefix(2000)) }; session.changed()
+                        })).textFieldStyle(.roundedBorder)
+                    }
+                    ColorPicker("Color", selection: Binding(get: {
+                        let c = session.selectedAnnotation?.color ?? selected.color
+                        return Color(red: c.red, green: c.green, blue: c.blue, opacity: c.alpha)
+                    }, set: { color in
+                        guard let rgb = NSColor(color).usingColorSpace(.sRGB) else { return }
+                        document.updateAnnotation(id: selected.id) { $0.color = AnnotationColor(red: rgb.redComponent, green: rgb.greenComponent, blue: rgb.blueComponent, alpha: rgb.alphaComponent) }
+                        session.changed()
+                    }), supportsOpacity: selected.kind != .redact)
+                    HStack {
+                        Text(selected.kind == .text || selected.kind == .numberedStep ? "Text Size" : "Stroke")
+                        Slider(value: Binding(get: {
+                            guard let value = session.selectedAnnotation else { return 6 }
+                            return value.kind == .text || value.kind == .numberedStep ? value.fontSize : value.lineWidth
+                        }, set: { size in
+                            document.updateAnnotation(id: selected.id) {
+                                if $0.kind == .text || $0.kind == .numberedStep { $0.fontSize = size.rounded() }
+                                else { $0.lineWidth = size.rounded() }
+                            }; session.changed()
+                        }), in: 1...(selected.kind == .text || selected.kind == .numberedStep ? 160 : 32))
+                        Button("Delete", role: .destructive) { document.removeAnnotation(id: selected.id); session.selectedAnnotationID = nil; session.changed() }
+                    }.font(.caption)
+                }
                 HStack {
                     Button("Undo", systemImage: "arrow.uturn.backward") { document.undo(); session.changed() }.disabled(!document.canUndo)
                     Button("Redo", systemImage: "arrow.uturn.forward") { document.redo(); session.changed() }.disabled(!document.canRedo)
@@ -106,7 +144,21 @@ struct OverlayInspectorView: View {
                     Button("Redo", systemImage: "arrow.uturn.forward") { document.redo(); session.changed() }.disabled(!document.canRedo)
                 }
                 Divider()
+                HStack {
+                    Button("Copy Smaller") { session.commitStyle(); session.actions.copySmaller(document) }
+                    Button("Save Smaller") { session.commitStyle(); session.actions.saveSmaller(document) }
+                }
+                Button("Pin Image", systemImage: "pin") { session.commitStyle(); session.actions.pin(document) }
+                if let renderer = session.actions.dragRenderer {
+                    CaptureDragHandle(request: document.request(backgroundURL: session.library.url(for: document.edits.style.backgroundID)),
+                        renderer: renderer, onDragBegan: session.actions.dragBegan, onDragEnded: session.actions.dragEnded,
+                        onDragCanceled: session.actions.dragCanceled,
+                        onError: { error in session.status = error.localizedDescription; session.statusIsError = true })
+                        .frame(width: 170, height: 30)
+                }
                 Text("\(outputWidth) × \(outputHeight) pixels · Lossless PNG").font(.callout.monospacedDigit())
+                Text("Editable recovery keeps the original pixels behind crops and redactions. Exported PNGs contain only the flattened visible image.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Text("⌘C Copy   ⌘S Save   ⌘Z Undo   ⇧⌘Z Redo").font(.caption).foregroundStyle(.secondary)
                 Button("Close Editor", systemImage: "xmark") { session.commitStyle(); session.onCancel() }
                 Button("Discard Screenshot", systemImage: "trash", role: .destructive) { session.onDiscard(document) }
@@ -118,6 +170,7 @@ struct OverlayInspectorView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 17))
         .overlay { RoundedRectangle(cornerRadius: 17).strokeBorder(.primary.opacity(0.12), lineWidth: 0.5) }
         .shadow(color: .black.opacity(0.18), radius: 18, y: 5)
+        .disabled(session.isDragging)
     }
 
     private var outputWidth: Int { Int(document.edits.crop.width) + padding * 2 }
@@ -126,9 +179,12 @@ struct OverlayInspectorView: View {
     private var annotationHint: String {
         switch session.annotationTool {
         case .text: "Click the screenshot to place text."
-        case .redact: "Drag to permanently cover sensitive content with solid black."
+        case .redact: "Exports cover pixels with solid black. Editable recovery still retains the original; use Private Capture to keep it off disk."
         case .arrow, .rectangle: "Drag on the screenshot to draw."
-        case nil: "Choose a tool, then draw directly on your screenshot."
+        case .highlighter: "Drag to highlight an area without hiding its text."
+        case .numberedStep: "Click to add the next numbered step."
+        case .spotlight: "Drag to keep an area bright and dim the rest."
+        case nil: "Click to select · Drag to move · Handles resize · Arrows nudge (Shift: 10 px)"
         }
     }
 

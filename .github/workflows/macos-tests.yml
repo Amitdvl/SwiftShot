@@ -1,0 +1,58 @@
+name: macOS Deterministic Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: macos-26
+    timeout-minutes: 35
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Prepare pinned XcodeGen
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOOL_DIR="$(mktemp -d "$RUNNER_TEMP/swiftshot-xcodegen.XXXXXX")"
+          curl --fail --location --silent --show-error --retry 3 \
+            https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip \
+            --output "$TOOL_DIR/xcodegen.zip"
+          printf '%s  %s\n' \
+            4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806 \
+            "$TOOL_DIR/xcodegen.zip" | shasum -a 256 --check
+          ditto -x -k "$TOOL_DIR/xcodegen.zip" "$TOOL_DIR"
+          "$TOOL_DIR/xcodegen/bin/xcodegen" --version
+          echo "$TOOL_DIR/xcodegen/bin" >> "$GITHUB_PATH"
+
+      - name: Clean optimized Debug build and deterministic tests
+        shell: bash
+        run: bash script/ci_test.sh
+
+      - name: Retain complete logs and XCTest result bundles
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: macos-test-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build/ci/**/*.log
+            build/ci/**/*.txt
+            build/ci/**/*.xcresult
+          if-no-files-found: warn
+          retention-days: 14

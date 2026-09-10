@@ -24,9 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let document = AppState.shared.lastDocument else { return .terminateNow }
         Task { @MainActor in
-            let preserved = await AppState.shared.preserve(document)
+            let preserved = await AppState.shared.prepareToQuit()
             if preserved { sender.reply(toApplicationShouldTerminate: true) }
             else { sender.reply(toApplicationShouldTerminate: false) }
         }
@@ -44,9 +43,21 @@ struct MenuBarView: View {
             }
             .disabled(appState.isCapturing)
         }
+        Button("Quick Copy Region", systemImage: "document.on.document") {
+            Task { await appState.capture(mode: .region, quickCopy: true) }
+        }.disabled(appState.isCapturing)
+        Button("Private Region Capture", systemImage: "lock.shield") {
+            Task { await appState.capture(mode: .region, privateCapture: true) }
+        }.disabled(appState.isCapturing)
+        Button("Scrolling Capture…", systemImage: "scroll") {
+            Task { await appState.capture(mode: .region, scrollingCapture: true) }
+        }.disabled(appState.isCapturing)
         Divider()
         Button("Reopen Last Capture") { Task { await appState.reopenLastCapture() } }
             .disabled(appState.lastDocument == nil && appState.recoveredRecords.isEmpty)
+        Button("Recapture Last Region") { Task { await appState.captureLastRegion() } }
+            .disabled(appState.lastRegion == nil || appState.isCapturing)
+        Button("Capture History…", systemImage: "clock.arrow.circlepath") { appState.showHistory() }
         let unsaved = appState.recoveredRecords.filter { $0.savedPath == nil }
         if !unsaved.isEmpty {
             Menu("Recover Unsaved (\(unsaved.count))") {
@@ -61,6 +72,9 @@ struct MenuBarView: View {
             Button("Show Last Save in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
         }
         Divider()
+        Button("Performance Diagnostics…", systemImage: "gauge.with.dots.needle.50percent") {
+            PerformanceDiagnostics.shared.showWindow()
+        }
         Button("Settings…") { appState.showPreferences() }.keyboardShortcut(",", modifiers: [.command])
         Button("Quit SwiftShot") { NSApp.terminate(nil) }.keyboardShortcut("q", modifiers: [.command])
     }

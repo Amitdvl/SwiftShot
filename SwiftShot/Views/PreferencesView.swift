@@ -7,6 +7,7 @@ struct PreferencesView: View {
         TabView {
             general.tabItem { Label("General", systemImage: "gearshape") }
             backgroundTab.tabItem { Label("Backgrounds", systemImage: "photo.on.rectangle.angled") }
+            WorkflowPresetsView().tabItem { Label("Presets", systemImage: "slider.horizontal.3") }
             shortcuts.tabItem { Label("Shortcuts", systemImage: "keyboard") }
         }
         .frame(width: 570, height: 540)
@@ -45,10 +46,23 @@ struct PreferencesView: View {
             Section("After selecting") {
                 Toggle("Copy immediately", isOn: $state.appSettings.immediateCopy)
                     .onChange(of: appState.appSettings.immediateCopy) { _, _ in appState.saveSettings() }
-                Text("Skip editing and copy with your last style. Reopen Last Capture from the menu bar whenever you need it.")
+                Text("Quick Copy uses its own preset (raw by default). Reopen Last Capture to edit it later.")
                     .font(.caption).foregroundStyle(.secondary)
+                Toggle("Show a recent capture thumbnail", isOn: $state.appSettings.showRecentThumbnail)
+                    .onChange(of: appState.appSettings.showRecentThumbnail) { _, _ in appState.saveSettings() }
+                Picker("Smaller Share maximum dimension", selection: $state.appSettings.shareMaxDimension) {
+                    Text("1280 px").tag(1280)
+                    Text("2048 px").tag(2048)
+                    Text("4096 px").tag(4096)
+                }.onChange(of: appState.appSettings.shareMaxDimension) { _, _ in appState.saveSettings() }
             }
             Section("Recovery") {
+                Toggle("Private captures (no recovery or text index)", isOn: $state.appSettings.privateCapture)
+                    .onChange(of: appState.appSettings.privateCapture) { _, _ in appState.saveSettings() }
+                Toggle("Search capture text locally", isOn: Binding(get: { appState.appSettings.historyIndexingEnabled },
+                    set: { enabled in Task { await appState.setHistoryIndexing(enabled) } }))
+                Text("Editable recovery keeps original pixels behind crops and redactions. Private captures stay in memory unless you explicitly save or drag them. Disabling text search deletes its local index.")
+                    .font(.caption).foregroundStyle(.secondary)
                 HStack {
                     Text("Your latest capture stays available after you close the toolbar.")
                         .font(.callout).foregroundStyle(.secondary)
@@ -56,6 +70,11 @@ struct PreferencesView: View {
                     Button("Reopen Last Capture") { Task { await appState.reopenLastCapture() } }
                         .disabled(appState.lastDocument == nil && appState.recoveredRecords.isEmpty)
                 }
+            }
+            Section("Diagnostics") {
+                Button("Performance Diagnostics…") { PerformanceDiagnostics.shared.showWindow() }
+                Text("Optional in-memory performance measurements. Off by default; export only when you choose.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             if let status = appState.statusMessage {
                 Section { Text(status).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
@@ -70,7 +89,11 @@ struct PreferencesView: View {
                 .frame(height: 120)
             BackgroundPickerView(library: appState.backgrounds, selection: Binding(
                 get: { appState.appSettings.style.backgroundID },
-                set: { appState.appSettings.style.backgroundID = $0; appState.saveSettings() }
+                set: {
+                    var style = appState.appSettings.style(for: .region)
+                    style.backgroundID = $0
+                    appState.appSettings.setStyle(style, for: .region); appState.saveSettings()
+                }
             ))
             Text("Fine-tune padding, corners, and shadow from the capture toolbar.")
                 .font(.caption).foregroundStyle(.secondary)
