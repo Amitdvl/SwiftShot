@@ -275,6 +275,15 @@ actor ImageRenderer: CaptureRendering {
             context.saveGState()
             context.addPath(outline)
             context.clip()
+            // ScreenCaptureKit window images retain fractional alpha around
+            // vibrancy, type and rounded edges. If the decorative background
+            // shows through those pixels, the exact same capture looks
+            // different (and its text fringes pick up the background colour)
+            // as soon as padding is enabled. Treat the screenshot itself as
+            // the white-backed card that a raw PNG is normally presented on;
+            // only the padding is decorative.
+            context.setFillColor(CGColor(gray: 1, alpha: 1))
+            context.fill(destination)
             context.interpolationQuality = .none
             context.draw(source, in: destination)
             // Original-image top-left coordinates become canvas bottom-left coordinates.

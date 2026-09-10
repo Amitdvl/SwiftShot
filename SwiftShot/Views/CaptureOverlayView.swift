@@ -135,6 +135,11 @@ struct CaptureOverlayView: View {
 
     private func selectedImage(_ image: CGImage, crop: CGRect, screenshot: CGRect, canvas: CGRect) -> some View {
         let clippedSource = ZStack {
+            // Keep the editor's card appearance identical to the exported
+            // bitmap. Window captures contain translucent vibrancy and text
+            // edge pixels; revealing the chosen decorative image beneath them
+            // makes the preview (and formerly the export) look lower quality.
+            if isStyled { Color.white }
             Image(decorative: image, scale: 1).resizable().interpolation(.none)
             AnnotationCanvasView(annotations: previewAnnotations.filter { $0.kind != .redact }, crop: crop)
         }

@@ -7,6 +7,26 @@ import SwiftUI
 private typealias ImageRenderer = SwiftShot.ImageRenderer
 
 final class RenderPipelineTests: XCTestCase {
+    func testStyledCaptureKeepsTranslucentSourcePixelsOffTheDecorativeBackground() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("SwiftShotSourceBacking-\(UUID())")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let background = directory.appendingPathComponent("blue.png")
+        try writePNG(rgbaFixture(width: 2, height: 2, rgba: [0, 80, 255, 255]), to: background)
+        // This models a transparent ScreenCaptureKit window corner / a
+        // fractional-alpha type edge. Its visual backing must stay stable when
+        // styling is toggled; the decorative image belongs only in the padding.
+        let source = try rgbaFixture(width: 20, height: 20, rgba: [0, 0, 0, 0])
+        let result = try await ImageRenderer().render(RenderRequest(image: source,
+            edits: CaptureEdits(crop: CGRect(x: 0, y: 0, width: 20, height: 20),
+                style: CaptureStyle(backgroundID: "blue", padding: 4, cornerRadius: 0, shadow: 0)), backgroundURL: background))
+        let image = try decodePNG(result.png)
+        XCTAssertEqual(try rgbaPixel(image, x: 10, y: 10), [255, 255, 255, 255],
+            "The screenshot card must not inherit the decorative background through alpha")
+        XCTAssertEqual(try rgbaPixel(image, x: 1, y: 1), [0, 80, 255, 255],
+            "Padding remains the selected decorative background")
+    }
+
     func testStyledShadowDoesNotPaintBlackBehindTransparentSource() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("SwiftShotAlpha-\(UUID())")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
