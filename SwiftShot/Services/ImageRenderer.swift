@@ -282,8 +282,10 @@ actor ImageRenderer: CaptureRendering {
             // as soon as padding is enabled. Treat the screenshot itself as
             // the white-backed card that a raw PNG is normally presented on;
             // only the padding is decorative.
-            context.setFillColor(CGColor(gray: 1, alpha: 1))
-            context.fill(destination)
+            if framed {
+                context.setFillColor(CGColor(gray: 1, alpha: 1))
+                context.fill(destination)
+            }
             context.interpolationQuality = .none
             context.draw(source, in: destination)
             // Original-image top-left coordinates become canvas bottom-left coordinates.
