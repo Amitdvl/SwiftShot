@@ -8,6 +8,8 @@ The older six-milestone contract and all entries below are historical evidence, 
 
 ## Product-focused next actions
 
+**Delivered under the revised goal, 2026-09-11:** product source commit `f9ea9c958834dac41d3510e43a385918134b712f` was pushed to `origin/main` and its remote hash verified. The signed installed app remains running with the executable hash recorded in `RELEASE_STATUS.md`; tracked product changes are clean. The unused design explorations and Python caches remain local and were not pushed. Lead decision: **Done for the product-focused shipping contract**, not for the superseded six-milestone certification. Remaining limits are documented follow-ups, not concealed passes or a reason to restart the old goal.
+
 **Finish-pass verification complete locally:** see [RELEASE_STATUS.md](RELEASE_STATUS.md). 497 Release tests and 14 Python checks passed; the signed app was installed/launched; native opaque-redaction Save passed exact full-image comparison, and source-guarded OCR copied exact fixture text. Native source-focus failures were retained and not relabeled OCR regressions or passing samples. Desktop save destination restored and fixture closed. The intended source/tests/docs/runtime icon assets are prepared for source publication; captures, logs, caches and unused design explorations remain local. Final staging found and removed one trailing space in the report script, with no behavioral change. No new feature or performance campaign is authorized by this checkpoint.
 
 1. Review the current diff and existing evidence for a short list of real release blockers: wrong capture/output, data loss, privacy failures, crashes and obvious daily-use friction. Do not re-audit every historical experiment.

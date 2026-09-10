@@ -2,6 +2,8 @@
 
 2026-09-11. This is the product finish pass defined in [GOAL.md](GOAL.md), not completion of the old exhaustive certification matrix. All artifacts below are retained locally under `build/goal/` and are not a public notarized release.
 
+**Delivered:** product source commit `f9ea9c958834dac41d3510e43a385918134b712f` was pushed to `origin/main` and verified against the remote ref. The installed app's signature and executable hash were rechecked after publication; it remains running. No new material blocker was found in the bounded finish pass. Documentation-only delivery bookkeeping may follow this product commit without changing the tested binary.
+
 ## Verified on the installed candidate
 
 - **497 Release XCTest cases passed, zero failures**, real process exit 0. Complete log/result: `product-finish-release.log` and `product-finish-release.xcresult`. Includes capture/export ownership, recovery/private mode, annotation/rendering, scrolling, history, presets, floating UI and App Intents behavior tests. Test-host AppKit/transaction and system App Intents warnings remain in the logs; a passing test is not proof of every external OS integration.
