@@ -13,9 +13,6 @@ final class ScrollCaptureControllerDrainTests: XCTestCase {
         let fixture = try Fixture()
         do {
             fixture.start(tag: 20)
-            let root = try fixture.currentRoot()
-            try await waitUntil { !root.model.busy }
-            root.startAutomatic()
             try await waitUntil { fixture.original.scrollGate.entered }
 
             let completion = Completion()
@@ -57,9 +54,6 @@ final class ScrollCaptureControllerDrainTests: XCTestCase {
         let fixture = try Fixture()
         do {
             fixture.start(tag: 20)
-            let originalRoot = try fixture.currentRoot()
-            try await waitUntil { !originalRoot.model.busy }
-            originalRoot.startAutomatic()
             try await waitUntil { fixture.original.scrollGate.entered }
 
             let prematureAcquisition = expectation(description: "Replacement acquired while old cleanup was held")
@@ -74,6 +68,10 @@ final class ScrollCaptureControllerDrainTests: XCTestCase {
             fixture.start(tag: 100)
             fixture.start(tag: 180)
             let replacementRoot = try fixture.currentRoot()
+            // This test exercises replacement ownership; keep the replacement
+            // session in its manual fallback so its first frame is the only
+            // acquisition after the original cleanup returns.
+            replacementRoot.model.automaticDisabled = true
             XCTAssertTrue(replacementRoot.model.busy)
 
             fixture.original.scrollGate.release()

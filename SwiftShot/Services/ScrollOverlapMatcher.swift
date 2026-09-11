@@ -9,6 +9,8 @@ struct ScrollCapturePixels: Sendable {
     let bytes: [UInt8]
     var byteCount: Int { bytes.count }
 
+    static let pixelTolerance = 8
+
     init(image: CGImage) throws {
         width = image.width
         height = image.height
@@ -39,12 +41,13 @@ struct ScrollCapturePixels: Sendable {
     }
 
     static func close(_ a: [UInt8], _ ai: Int, _ b: [UInt8], _ bi: Int) -> Bool {
-        abs(Int(a[ai]) - Int(b[bi])) <= 6 && abs(Int(a[ai + 1]) - Int(b[bi + 1])) <= 6 &&
-            abs(Int(a[ai + 2]) - Int(b[bi + 2])) <= 6 && abs(Int(a[ai + 3]) - Int(b[bi + 3])) <= 6
+        abs(Int(a[ai]) - Int(b[bi])) <= pixelTolerance && abs(Int(a[ai + 1]) - Int(b[bi + 1])) <= pixelTolerance &&
+            abs(Int(a[ai + 2]) - Int(b[bi + 2])) <= pixelTolerance && abs(Int(a[ai + 3]) - Int(b[bi + 3])) <= pixelTolerance
     }
 }
 
 enum ScrollOverlapMatcher {
+    private static let acceptanceFraction = 0.995
     enum Match {
         case unchanged
         case overlap(offset: Int, header: Int, footer: Int)
@@ -54,17 +57,17 @@ enum ScrollOverlapMatcher {
     static func match(previous: ScrollCapturePixels, next: ScrollCapturePixels) throws -> Match {
         let height = previous.height
         guard previous.width == next.width, height == next.height else { return .rejected(.dimensionsChanged) }
-        if try previous.matchFraction(other: next, fromRow: 0, otherFromRow: 0, rowCount: height) == 1 { return .unchanged }
+        if try previous.matchFraction(other: next, fromRow: 0, otherFromRow: 0, rowCount: height) >= acceptanceFraction { return .unchanged }
         var header = 0
         var footer = 0
         let stickyLimit = height / 3
         while header < stickyLimit {
-            guard try previous.matchFraction(other: next, fromRow: header, otherFromRow: header, rowCount: 1) == 1 else { break }
+            guard try previous.matchFraction(other: next, fromRow: header, otherFromRow: header, rowCount: 1) >= acceptanceFraction else { break }
             header += 1
         }
         while footer < stickyLimit {
             guard try previous.matchFraction(other: next, fromRow: height - footer - 1,
-                otherFromRow: height - footer - 1, rowCount: 1) == 1 else { break }
+                otherFromRow: height - footer - 1, rowCount: 1) >= acceptanceFraction else { break }
             footer += 1
         }
         let minimumOverlap = max(32, height / 5)
@@ -83,7 +86,7 @@ enum ScrollOverlapMatcher {
         func validated(_ offset: Int) throws -> Bool {
             let overlap = height - footer - header - offset
             return try previous.matchFraction(other: next, fromRow: header + offset, otherFromRow: header,
-                rowCount: overlap) == 1
+                rowCount: overlap) >= acceptanceFraction
         }
         guard best.quality >= 0.985, try validated(best.offset) else { return .rejected(.dynamicContent) }
         for candidate in candidates where candidate.offset != best.offset && candidate.quality >= best.quality - 0.005 {

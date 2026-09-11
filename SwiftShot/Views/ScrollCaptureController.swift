@@ -79,6 +79,13 @@ final class ScrollCaptureController: NSObject, NSWindowDelegate {
             do {
                 let report = try await coordinator.start()
                 await self.update(report, coordinator: coordinator, id: id)
+                guard self.sessionID == id else { return }
+                // Screenshot X-style capture is automatic after the region is
+                // committed. Manual Add Frame remains available when a target
+                // does not expose a safe native scrolling surface.
+                if report.disposition == .firstFrame, !model.acquisitionDisabled, !model.automaticDisabled {
+                    await self.runAutomatic(id: id, coordinator: coordinator, model: model)
+                }
             } catch { self.show(error, id: id) }
             self.finishedWork(id: id)
         }
@@ -139,20 +146,39 @@ final class ScrollCaptureController: NSObject, NSWindowDelegate {
         guard let coordinator, let id = sessionID, let model, !model.busy, model.frameCount > 0,
               !model.acquisitionDisabled, !model.automaticDisabled else { return }
         model.busy = true
-        model.automatic = true
-        model.status = "Auto is checking each overlap. Keep the target and pointer unchanged; Stop Auto preserves the partial result."
         work = Task { [weak self] in
             guard let self else { return }
-            do {
-                try await coordinator.runAutomatic { [weak self] report, statistics in
-                    guard let self, self.sessionID == id else { return }
-                    self.apply(report, statistics: statistics)
-                }
-            } catch { self.show(error, id: id) }
-            guard self.sessionID == id else { return }
-            model.warnings = coordinator.warnings
+            await self.runAutomatic(id: id, coordinator: coordinator, model: model)
             self.finishedWork(id: id)
         }
+    }
+
+    private func runAutomatic(id: UUID, coordinator: ScrollCaptureCoordinator, model: ScrollCapturePanelModel) async {
+        guard sessionID == id else { return }
+        model.busy = true
+        model.automatic = true
+        model.status = "Auto-scrolling and stitching… Keep the target unchanged; Stop Auto preserves the partial result."
+        do {
+            try await coordinator.runAutomatic { [weak self] report, statistics in
+                guard let self, self.sessionID == id else { return }
+                self.apply(report, statistics: statistics)
+            }
+        } catch {
+            guard sessionID == id else { return }
+            if error is CancellationError {
+                model.status = "Stopped. Review the partial capture before finishing."
+            } else if coordinator.warnings.isEmpty {
+                // Accessibility/native scrolling is optional. Keep the first
+                // frame usable when manual capture can still finish the job.
+                model.status = "Auto-scrolling is unavailable for this target. Scroll manually, then Add Frame."
+            } else {
+                show(error, id: id)
+            }
+        }
+        guard sessionID == id else { return }
+        model.warnings = coordinator.warnings
+        model.automatic = false
+        model.busy = false
     }
 
     private func stop(reason: String = "Auto stopped. Review the partial result before finishing.", terminal: Bool = false) {
@@ -205,10 +231,10 @@ final class ScrollCaptureController: NSObject, NSWindowDelegate {
         model.width = statistics.outputWidth
         model.height = statistics.outputHeight
         switch report.disposition {
-        case .firstFrame: model.status = "Scroll the selected content down by less than half a page, then Add Frame. Auto is optional."
+        case .firstFrame: model.status = "Preparing automatic scrolling…"
         case .appended:
-            model.status = "Added \(report.addedRows) verified rows. Scroll again or Finish."
-        case .unchanged: model.status = "No new distinguishable content. This may be the end or a repeated section; review before finishing."
+            model.status = "Added \(report.addedRows) verified rows."
+        case .unchanged: model.status = "End of content detected. Review the result or Finish."
         case .rejected: model.status = report.issue?.localizedDescription ?? "The uncertain frame was not added."
         }
     }

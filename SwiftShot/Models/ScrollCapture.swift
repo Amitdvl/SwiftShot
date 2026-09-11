@@ -10,7 +10,9 @@ struct ScrollCaptureRegion: Sendable {
 }
 
 struct ScrollCaptureLimits: Sendable {
-    var maximumFrames = 40
+    // The output and memory caps remain the real safety bounds. A 40-frame cap
+    // truncates long documents before either of those limits is meaningful.
+    var maximumFrames = 120
     var maximumOutputPixels = 64_000_000
     var maximumMemoryBytes = 384 * 1024 * 1024
 }
@@ -32,7 +34,7 @@ enum ScrollCaptureIssue: String, Error, Sendable, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .insufficientOverlap: "The frames do not overlap enough. Scroll back and use a smaller step; the uncertain frame was not added."
+        case .insufficientOverlap: "The frames do not overlap enough. The uncertain frame was not added."
         case .ambiguousContent: "Repeated or blank content makes the overlap ambiguous. The uncertain frame was not added."
         case .dynamicContent: "Content changed while capturing. Stop animations or live updates and try again; the uncertain frame was not added."
         case .dimensionsChanged: "The capture dimensions changed. The uncertain frame was not added."

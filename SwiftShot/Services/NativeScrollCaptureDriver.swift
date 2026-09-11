@@ -87,9 +87,20 @@ struct NativeScrollCaptureTarget {
     let id: UUID
     let point: CGPoint
     let ownerPID: pid_t
+    let isAtEndOfContent: @MainActor () -> Bool?
     /// Nil is invalid/unavailable metadata, never cancellation alone. Providers
     /// drain native work and return its actual evidence even when cancelled.
     let prepareReceipt: @MainActor (NativeScrollCapturePurpose) async -> NativeScrollCaptureReceipt?
+
+    init(id: UUID, point: CGPoint, ownerPID: pid_t,
+         isAtEndOfContent: @escaping @MainActor () -> Bool? = { nil },
+         prepareReceipt: @escaping @MainActor (NativeScrollCapturePurpose) async -> NativeScrollCaptureReceipt?) {
+        self.id = id
+        self.point = point
+        self.ownerPID = ownerPID
+        self.isAtEndOfContent = isAtEndOfContent
+        self.prepareReceipt = prepareReceipt
+    }
 }
 
 @MainActor
@@ -189,6 +200,11 @@ final class NativeScrollCaptureDriver: ScrollCaptureDriving {
         if let points, points.isFinite, points >= 0 { observedMovement += points }
         else { observedMovement += pendingMovement; uncertainMovement = true }
         pendingMovement = 0
+    }
+
+    func isAtEndOfContent() -> Bool? {
+        guard phase == .active, operationID == nil, let target else { return nil }
+        return target.isAtEndOfContent()
     }
 
     func restore() async -> String? {
@@ -370,7 +386,8 @@ struct SystemScrollCaptureEnvironment: NativeScrollCaptureEnvironment {
         }
         try Task.checkCancellation()
         let id = UUID()
-        return NativeScrollCaptureTarget(id: id, point: point, ownerPID: identity.pid) { purpose in
+        return NativeScrollCaptureTarget(id: id, point: point, ownerPID: identity.pid,
+            isAtEndOfContent: { self.isAtEndOfContent(identity) }) { purpose in
             guard self.hasAccess(), displayIsCurrent() else { return nil }
             let prepared = await preparation.prepare(boundTo: identity)
             // Return known validity, not a cancellation-shaped nil. The driver
@@ -387,6 +404,27 @@ struct SystemScrollCaptureEnvironment: NativeScrollCaptureEnvironment {
                     return true
                 })
         }
+    }
+
+    private func isAtEndOfContent(_ identity: ScrollTargetIdentity) -> Bool? {
+        guard hasAccess() else { return nil }
+        var scrollbarValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(identity.scrollArea, kAXVerticalScrollBarAttribute as CFString,
+                                             &scrollbarValue) == .success,
+              let scrollbarValue, CFGetTypeID(scrollbarValue) == AXUIElementGetTypeID() else { return nil }
+        let scrollbar = scrollbarValue as! AXUIElement
+        func number(_ attribute: String) -> Double? {
+            var value: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(scrollbar, attribute as CFString, &value) == .success,
+                  let value, CFGetTypeID(value) == CFNumberGetTypeID() else { return nil }
+            let number = value as! NSNumber
+            let result = number.doubleValue
+            return result.isFinite ? result : nil
+        }
+        guard let value = number(kAXValueAttribute), let maximum = number(kAXMaxValueAttribute),
+              let minimum = number(kAXMinValueAttribute), maximum >= minimum else { return nil }
+        let tolerance = max(0.5, (maximum - minimum) * 0.01)
+        return value >= maximum - tolerance
     }
     func hasAccess() -> Bool { AXIsProcessTrusted() && CGPreflightPostEventAccess() }
     func pointerLocation() -> CGPoint? { CGEvent(source: nil)?.location }

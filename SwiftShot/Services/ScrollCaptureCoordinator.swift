@@ -9,13 +9,22 @@ protocol ScrollCaptureDriving: AnyObject {
     func scrollDown(points: CGFloat) async throws
     /// Nil means the movement could not be established from a trustworthy overlap.
     func recordObservedMovement(points: CGFloat?)
+    /// Returns true only when the native target positively reports its end
+    /// position. Nil means the target does not expose trustworthy scroll
+    /// metrics, so an unchanged frame remains reviewable rather than silently
+    /// claiming a complete document.
+    func isAtEndOfContent() -> Bool?
     /// Restores pointer/focus and requests page restoration; returns uncertainty.
     func restore() async -> String?
 }
 
+extension ScrollCaptureDriving {
+    func isAtEndOfContent() -> Bool? { nil }
+}
+
 struct ScrollCaptureTiming: Sendable {
-    var settlingDelay: Duration = .milliseconds(250)
-    var stabilityDelay: Duration = .milliseconds(150)
+    var settlingDelay: Duration = .milliseconds(140)
+    var stabilityDelay: Duration = .milliseconds(70)
 }
 
 /// Testable orchestration; it owns no windows and never writes an archive or file.
@@ -32,6 +41,7 @@ final class ScrollCaptureCoordinator {
     private var operating = false
     private var started = false
     private var acquisitionStopReason: String?
+    private var nextScrollPoints: CGFloat
     private(set) var warnings: [String] = []
 
     init(region: ScrollCaptureRegion, limits: ScrollCaptureLimits = ScrollCaptureLimits(),
@@ -42,6 +52,7 @@ final class ScrollCaptureCoordinator {
         self.timing = timing
         self.acquire = acquire
         self.driver = driver
+        nextScrollPoints = max(48, min(region.rect.height * 0.45, region.rect.height - 48))
         stitcher = ScrollStitcher(limits: limits)
     }
 
@@ -100,7 +111,7 @@ final class ScrollCaptureCoordinator {
                 return
             }
             try ensureAvailable()
-            try await driver.scrollDown(points: max(16, region.rect.height * 0.55))
+            try await driver.scrollDown(points: nextScrollPoints)
             try await Task.sleep(for: timing.settlingDelay)
             try ensureAvailable()
             try await driver.validateTarget()
@@ -132,7 +143,13 @@ final class ScrollCaptureCoordinator {
             let scale = CGFloat(settled.image.width) / region.rect.width
             switch report.disposition {
             case .appended:
-                driver.recordObservedMovement(points: CGFloat(report.addedRows) / scale)
+                let observed = CGFloat(report.addedRows) / scale
+                driver.recordObservedMovement(points: observed)
+                // Keep a generous overlap for matching, but avoid making a
+                // long page needlessly slow. The next request follows the
+                // movement that was actually observed, not merely the wheel
+                // delta that was requested.
+                nextScrollPoints = max(48, min(region.rect.height * 0.68, observed * 1.08))
             case .unchanged:
                 driver.recordObservedMovement(points: 0)
             case .rejected, .firstFrame:
@@ -140,7 +157,20 @@ final class ScrollCaptureCoordinator {
             }
             record(report)
             onProgress(report, await stitcher.statistics())
-            guard report.disposition == .appended else { return }
+            switch report.disposition {
+            case .appended:
+                if driver.isAtEndOfContent() == true { return }
+                continue
+            case .unchanged:
+                // A native scrollbar at its maximum is a clean completion. A
+                // target without metrics stops conservatively with an explicit
+                // ambiguity warning rather than claiming a complete document.
+                if driver.isAtEndOfContent() == true { return }
+                addWarning(ScrollCaptureIssue.ambiguousContent.localizedDescription)
+                return
+            case .rejected, .firstFrame:
+                return
+            }
         }
     }
 
@@ -176,9 +206,6 @@ final class ScrollCaptureCoordinator {
 
     private func record(_ report: ScrollAppendReport) {
         if let issue = report.issue { addWarning(issue.localizedDescription) }
-        if report.disposition == .unchanged {
-            addWarning("No new distinguishable content appeared. This may be the end or repeated content; review the result for completeness.")
-        }
     }
 
     private func capacityIssue(stabilityPair: Bool) async -> ScrollCaptureIssue? {

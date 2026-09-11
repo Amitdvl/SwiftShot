@@ -43,13 +43,13 @@ struct ScrollCapturePanelView: View {
                 Button("Add Frame", action: addFrame)
                     .keyboardShortcut(.return, modifiers: [])
                     .disabled(model.busy || model.acquisitionDisabled)
-                    .help("Scroll the selected content down by less than half a page, then add the visible frame.")
+                    .help("Use this fallback for targets that cannot be scrolled automatically.")
                 if model.automatic {
                     Button("Stop Auto", action: stop).keyboardShortcut(".", modifiers: .command)
                 } else {
                     Button("Auto", action: startAutomatic)
                         .disabled(model.busy || model.frameCount == 0 || model.acquisitionDisabled || model.automaticDisabled)
-                        .help("Scroll and capture automatically. Requires Accessibility permission. Keep the target and pointer unchanged; moving the pointer stops Auto without restoring your page or focus.")
+                        .help("Start automatic scrolling. Requires Accessibility permission; keep the target unchanged.")
                 }
                 Spacer()
                 Button("Finish", action: finish)
@@ -57,7 +57,7 @@ struct ScrollCapturePanelView: View {
                     .disabled(model.busy || model.frameCount == 0)
             }
             HStack {
-                Text("Manual first · local processing only")
+                Text("Automatic first · local processing only")
                     .font(.caption2).foregroundStyle(.secondary)
                 Spacer()
                 Button("Cancel", role: .cancel, action: cancel)

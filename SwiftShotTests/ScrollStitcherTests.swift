@@ -269,6 +269,34 @@ final class ScrollStitcherTests: XCTestCase {
     }
 
     @MainActor
+    func testAutomaticCoordinatorUsesNativeEndEvidenceForCompleteResult() async throws {
+        let initial = ScrollCaptureFrame(image: try image(width: 96, height: 240, offset: 0))
+        let moved = ScrollCaptureFrame(image: try image(width: 96, height: 240, offset: 70))
+        let frames = ScrollTestFrameQueue([initial, moved, moved])
+        let driver = ScrollTestDriver()
+        driver.atEndOfContent = true
+        let coordinator = ScrollCaptureCoordinator(region: testRegion(),
+            timing: ScrollCaptureTiming(settlingDelay: .zero, stabilityDelay: .zero),
+            acquire: { _ in try frames.next() }, driver: driver)
+        _ = try await coordinator.start()
+        try await coordinator.runAutomatic { _, _ in }
+        let result = try await coordinator.finish()
+        XCTAssertTrue(result.isComplete)
+        XCTAssertTrue(result.warnings.isEmpty)
+        XCTAssertEqual(driver.scrolls, 1)
+        XCTAssertEqual(result.image.height, 310)
+    }
+
+    func testMinorCaptureNoiseDoesNotRejectAStablePair() async throws {
+        let stitcher = ScrollStitcher()
+        let original = try image(width: 96, height: 240, offset: 0)
+        let noisy = try imageWithNoise(original, everyPixel: 1_000)
+        let stable = try await stitcher.framesAreStable(ScrollCaptureFrame(image: original),
+            ScrollCaptureFrame(image: noisy))
+        XCTAssertTrue(stable)
+    }
+
+    @MainActor
     func testAutomaticCoordinatorRejectsUnsettledFrameAndRestoresDriver() async throws {
         let frames = ScrollTestFrameQueue([
             ScrollCaptureFrame(image: try image(width: 96, height: 240, offset: 0)),
@@ -352,6 +380,18 @@ final class ScrollStitcherTests: XCTestCase {
             decode: nil, shouldInterpolate: false, intent: .defaultIntent))
     }
 
+    private func imageWithNoise(_ image: CGImage, everyPixel: Int) throws -> CGImage {
+        var bytes = Array(try pixels(image))
+        for index in stride(from: 0, to: bytes.count, by: max(1, everyPixel) * 4) {
+            bytes[index] = min(255, bytes[index] &+ 3)
+        }
+        let provider = try XCTUnwrap(CGDataProvider(data: Data(bytes) as CFData))
+        return try XCTUnwrap(CGImage(width: image.width, height: image.height, bitsPerComponent: 8,
+            bitsPerPixel: 32, bytesPerRow: image.width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue), provider: provider,
+            decode: nil, shouldInterpolate: false, intent: .defaultIntent))
+    }
+
     private func pixels(_ image: CGImage) throws -> Data {
         let context = try XCTUnwrap(CGContext(data: nil, width: image.width, height: image.height,
             bitsPerComponent: 8, bytesPerRow: image.width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
@@ -380,6 +420,7 @@ private final class ScrollTestDriver: ScrollCaptureDriving {
     var restorations = 0
     var observedMovements: [CGFloat?] = []
     var blockScroll = false
+    var atEndOfContent: Bool? = false
     func begin(in region: ScrollCaptureRegion) async throws { begins += 1 }
     func validateTarget() async throws {}
     func scrollDown(points: CGFloat) async throws {
@@ -387,6 +428,7 @@ private final class ScrollTestDriver: ScrollCaptureDriving {
         if blockScroll { try await Task.sleep(for: .seconds(10)) }
     }
     func recordObservedMovement(points: CGFloat?) { observedMovements.append(points) }
+    func isAtEndOfContent() -> Bool? { atEndOfContent }
     func restore() async -> String? { restorations += 1; return nil }
 }
 
