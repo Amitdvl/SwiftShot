@@ -84,10 +84,10 @@ struct FloatingCaptureSnapshot {
         guard [crop.minX, crop.minY, crop.width, crop.height, style.padding].allSatisfy(\.isFinite),
               crop.width > 0, crop.height > 0, crop == crop.integral,
               CGRect(x: 0, y: 0, width: request.image.width, height: request.image.height).contains(crop),
-              (0...CaptureStyle.maxInputPadding).contains(style.padding), request.edits.annotations.count <= 10_000 else {
+              (0...16_384).contains(style.padding), request.edits.annotations.count <= 10_000 else {
             throw FloatingCaptureError.invalidGeometry
         }
-        let padding = style.effectivePadding
+        let padding = style.backgroundID.isEmpty ? 0 : Int(style.padding.rounded())
         let width = renderedImage?.width ?? (Int(crop.width) + padding * 2)
         let height = renderedImage?.height ?? (Int(crop.height) + padding * 2)
         guard width > 0, height > 0, width <= 32_768, height <= 32_768 else { throw FloatingCaptureError.invalidGeometry }

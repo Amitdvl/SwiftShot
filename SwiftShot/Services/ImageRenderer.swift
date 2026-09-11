@@ -193,10 +193,10 @@ actor ImageRenderer: CaptureRendering {
             let framed = !edits.style.backgroundID.isEmpty
             let style = edits.style
             guard style.backgroundID.utf8.count <= 1024,
-                  [style.padding, style.cornerRadius, style.shadow].allSatisfy({ $0.isFinite && $0 >= 0 && $0 <= CaptureStyle.maxInputPadding }) else {
+                  [style.padding, style.cornerRadius, style.shadow].allSatisfy({ $0.isFinite && $0 >= 0 && $0 <= 16_384 }) else {
                 throw RenderError.invalidGeometry
             }
-            let padding = framed ? style.effectivePadding : 0
+            let padding = framed ? Int(style.padding.rounded()) : 0
             let width = Int(crop.width) + padding * 2
             let height = Int(crop.height) + padding * 2
             // Bound each axis and total allocation before decoding or allocating bitmap memory.

@@ -80,7 +80,7 @@ struct OverlayInspectorView: View {
                     set: { value in session.previewStyle = nil; document.change { $0.style.backgroundID = value }; session.changed() }
                 ))
                 Divider()
-                styleSlider("Padding", value: \.padding, range: 0...Double(CaptureStyle.maxEffectivePadding))
+                styleSlider("Padding", value: \.padding, range: 0...240)
                 styleSlider("Corners", value: \.cornerRadius, range: 0...64)
                 styleSlider("Shadow", value: \.shadow, range: 0...64)
             case .annotations:

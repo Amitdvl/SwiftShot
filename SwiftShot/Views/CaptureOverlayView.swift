@@ -38,7 +38,7 @@ struct CaptureOverlayView: View {
     private var canvasFrame: CGRect? {
         guard let sourceFrame else { return nil }
         guard isStyled else { return sourceFrame }
-        let padding = CGFloat(session.effectiveStyle.effectivePadding) * imageFrame.width / pixelSize.width
+        let padding = CGFloat(session.effectiveStyle.padding.rounded()) * imageFrame.width / pixelSize.width
         let proposed = sourceFrame.insetBy(dx: -padding, dy: -padding)
         let scale = min(1, (screenSize.width - 48) / proposed.width, (screenSize.height - 110) / proposed.height)
         let width = proposed.width * scale, height = proposed.height * scale
@@ -49,7 +49,7 @@ struct CaptureOverlayView: View {
     private var screenshotFrame: CGRect? {
         guard let canvasFrame, let crop else { return sourceFrame }
         guard isStyled else { return canvasFrame }
-        let padding = CGFloat(session.effectiveStyle.effectivePadding)
+        let padding = CGFloat(session.effectiveStyle.padding.rounded())
         let scale = canvasFrame.width / (crop.width + 2 * padding)
         return canvasFrame.insetBy(dx: padding * scale, dy: padding * scale)
     }
@@ -309,7 +309,7 @@ struct CaptureOverlayView: View {
     }
 
     private func toolbarContent(document: CaptureDocument) -> some View {
-        let padding = session.effectiveStyle.effectivePadding
+        let padding = session.effectiveStyle.backgroundID.isEmpty ? 0 : Int(session.effectiveStyle.padding.rounded())
         return VStack(spacing: 8) {
             CaptureToolbarView(session: session, document: document).frame(height: 61)
             HStack(spacing: 7) {

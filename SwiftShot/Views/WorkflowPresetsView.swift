@@ -25,7 +25,7 @@ struct WorkflowPresetsView: View {
                     var style = appState.appSettings.style(for: workflow)
                     style.backgroundID = id; updateStyle(style)
                 }))
-                slider("Padding", key: \.padding, range: 0...Double(CaptureStyle.maxEffectivePadding))
+                slider("Padding", key: \.padding, range: 0...240)
                 slider("Corners", key: \.cornerRadius, range: 0...64)
                 slider("Shadow", key: \.shadow, range: 0...64)
                 Divider()
