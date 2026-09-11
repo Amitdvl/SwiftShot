@@ -64,6 +64,13 @@ private struct CaptureToolButton: View {
 struct OverlayInspectorView: View {
     let session: OverlaySession
     let document: CaptureDocument
+    let width: CGFloat
+
+    init(session: OverlaySession, document: CaptureDocument, width: CGFloat = 380) {
+        self.session = session
+        self.document = document
+        self.width = width
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -160,7 +167,7 @@ struct OverlayInspectorView: View {
         }
         .buttonStyle(CaptureButtonStyle())
         .padding(20)
-        .frame(width: 380)
+        .frame(width: width)
         .captureChrome()
         .disabled(session.isDragging)
     }

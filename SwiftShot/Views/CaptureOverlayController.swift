@@ -389,6 +389,65 @@ enum OverlayGeometry {
         return CGRect(x: x, y: y, width: width, height: height)
     }
 
+    /// Places an expanded inspector beside the selected canvas whenever the
+    /// display has room. If the canvas fills the display, choose the edge
+    /// with the smallest canvas/toolbar overlap instead of covering its center.
+    static func inspectorFrame(canvas: CGRect, toolbar: CGRect, size: CGSize,
+                               screen: CGSize, topInset: CGFloat) -> CGRect {
+        let margin: CGFloat = 14
+        let gap: CGFloat = 16
+        let bounds = CGRect(x: margin, y: max(margin, topInset),
+                            width: max(1, screen.width - margin * 2),
+                            height: max(1, screen.height - max(margin, topInset) - margin))
+        let panelSize = CGSize(width: min(size.width, bounds.width), height: min(size.height, bounds.height))
+        let target = canvas.standardized.intersection(bounds)
+        let centeredSideY = min(max(target.midY - panelSize.height / 2, bounds.minY), bounds.maxY - panelSize.height)
+        let sideX = min(max(target.midX - panelSize.width / 2, bounds.minX), bounds.maxX - panelSize.width)
+        func sideY(for x: CGFloat) -> CGFloat {
+            let positions = [centeredSideY, bounds.minY, bounds.maxY - panelSize.height]
+            return positions.min { lhs, rhs in
+                let left = CGRect(origin: CGPoint(x: x, y: lhs), size: panelSize)
+                let right = CGRect(origin: CGPoint(x: x, y: rhs), size: panelSize)
+                let leftOverlap = max(0, left.intersection(toolbar).width) * max(0, left.intersection(toolbar).height)
+                let rightOverlap = max(0, right.intersection(toolbar).width) * max(0, right.intersection(toolbar).height)
+                return leftOverlap < rightOverlap
+            } ?? centeredSideY
+        }
+        var candidates: [CGRect] = []
+        if target.minX - gap - panelSize.width >= bounds.minX {
+            let x = target.minX - gap - panelSize.width
+            candidates.append(CGRect(origin: CGPoint(x: x, y: sideY(for: x)), size: panelSize))
+        }
+        if target.maxX + gap + panelSize.width <= bounds.maxX {
+            let x = target.maxX + gap
+            candidates.append(CGRect(origin: CGPoint(x: x, y: sideY(for: x)), size: panelSize))
+        }
+        if target.minY - gap - panelSize.height >= bounds.minY {
+            candidates.append(CGRect(origin: CGPoint(x: sideX, y: target.minY - gap - panelSize.height), size: panelSize))
+        }
+        if target.maxY + gap + panelSize.height <= bounds.maxY {
+            candidates.append(CGRect(origin: CGPoint(x: sideX, y: target.maxY + gap), size: panelSize))
+        }
+        candidates.append(contentsOf: [
+            CGRect(origin: CGPoint(x: bounds.minX, y: sideY(for: bounds.minX)), size: panelSize),
+            CGRect(origin: CGPoint(x: bounds.maxX - panelSize.width, y: sideY(for: bounds.maxX - panelSize.width)), size: panelSize),
+            CGRect(origin: CGPoint(x: sideX, y: bounds.minY), size: panelSize),
+            CGRect(origin: CGPoint(x: sideX, y: bounds.maxY - panelSize.height), size: panelSize)
+        ])
+        func area(_ rect: CGRect) -> CGFloat { max(0, rect.width) * max(0, rect.height) }
+        let safeCanvas = target.isNull ? .zero : target
+        let safeToolbar = toolbar.intersection(bounds)
+        return candidates.enumerated().min { lhs, rhs in
+            let leftScore = area(lhs.element.intersection(safeCanvas)) * 10
+                + area(lhs.element.intersection(safeToolbar)) * 100
+                + CGFloat(lhs.offset) * 0.001
+            let rightScore = area(rhs.element.intersection(safeCanvas)) * 10
+                + area(rhs.element.intersection(safeToolbar)) * 100
+                + CGFloat(rhs.offset) * 0.001
+            return leftScore < rightScore
+        }?.element ?? CGRect(origin: bounds.origin, size: panelSize)
+    }
+
     static func moved(_ rect: CGRect, by delta: CGSize, in bounds: CGRect) -> CGRect {
         // Oversized annotations may straddle a crop. Keep that viewport overlap
         // without snapping them to the opposite edge on their first nudge.

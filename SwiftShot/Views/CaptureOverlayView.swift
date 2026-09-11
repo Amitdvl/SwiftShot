@@ -65,17 +65,24 @@ struct CaptureOverlayView: View {
         return toolbarOrigin ?? automatic.origin
     }
 
-    private var inspectorAbove: Bool {
-        toolbarAnchor.y - toolbarTopInset > screenSize.height - toolbarAnchor.y - 94
+    private var primaryToolbarFrame: CGRect {
+        OverlayToolbarLayout.frame(screen: screenSize, topInset: toolbarTopInset,
+            size: CGSize(width: min(428, screenSize.width - 28), height: 80),
+            near: canvasFrame ?? .zero, manualOrigin: toolbarAnchor)
     }
 
-    private var toolbarCapacity: OverlayToolbarLayout {
-        let available = inspectorAbove ? toolbarAnchor.y - toolbarTopInset + 80
-            : screenSize.height - toolbarAnchor.y - 14
-        return OverlayToolbarLayout(screen: screenSize, topInset: toolbarTopInset,
-                             inspectorHeight: session.activePopover == nil ? 0 : .greatestFiniteMagnitude,
-                             hasTextEntry: textAnchor != nil, hasStatus: !session.status.isEmpty,
-                             availableHeight: available)
+    /// The inspector gets its own placement so expanding annotation controls
+    /// never pushes the action rail over the capture. Prefer a free side of
+    /// the canvas, then fall back to the least-obstructing display edge.
+    private var inspectorFrame: CGRect {
+        let width = min(360, max(240, screenSize.width - 28))
+        // Keep the inspector short enough to leave a clear reading area on
+        // compact displays. Overflow remains reachable through the real
+        // scroll viewport inside the panel.
+        let height = min(380, max(180, screenSize.height - toolbarTopInset - 80))
+        return OverlayGeometry.inspectorFrame(canvas: canvasFrame ?? .zero,
+            toolbar: primaryToolbarFrame, size: CGSize(width: width, height: height),
+            screen: screenSize, topInset: toolbarTopInset)
     }
 
     var body: some View {
@@ -313,21 +320,45 @@ struct CaptureOverlayView: View {
     }
 
     private func toolbar(document: CaptureDocument, selection: CGRect) -> some View {
-        OverlayToolbarPlacement(screen: screenSize, topInset: toolbarTopInset,
-            selection: selection, manualOrigin: toolbarAnchor, expandsAbove: inspectorAbove) {
-            toolbarContent(document: document)
-                .frame(width: toolbarCapacity.size.width)
+        ZStack(alignment: .topLeading) {
+            OverlayToolbarPlacement(screen: screenSize, topInset: toolbarTopInset,
+                selection: selection, manualOrigin: toolbarAnchor) {
+                toolbarPrimary(document: document)
+                    .frame(width: min(428, screenSize.width - 28))
+            }
+            if session.activePopover != nil || textAnchor != nil || !session.status.isEmpty {
+                inspector(document: document)
+                    .transition(.opacity)
+            }
         }
+        .frame(width: screenSize.width, height: screenSize.height)
         .onAppear { if toolbarOrigin == nil { toolbarOrigin = toolbarAnchor } }
-        // Optional rows expand away from this compact anchor. No placement animation.
     }
 
-    private func toolbarContent(document: CaptureDocument) -> some View {
-        VStack(spacing: 8) {
-            if inspectorAbove { toolbarDetails(document: document) }
-            toolbarPrimary(document: document)
-            if !inspectorAbove { toolbarDetails(document: document) }
+    private func inspector(document: CaptureDocument) -> some View {
+        let frame = inspectorFrame
+        let textRowHeight: CGFloat = textAnchor != nil ? 56 : 0
+        let statusRowHeight: CGFloat = !session.status.isEmpty ? 56 : 0
+        let supportingRowsHeight = textRowHeight + statusRowHeight
+        let rowGap: CGFloat = supportingRowsHeight > 0 ? 8 : 0
+        // Keep the viewport's size explicit. SwiftUI otherwise proposes an
+        // unconstrained height to a ScrollView, which can leave a stale
+        // document clip after a text/status row is inserted or removed.
+        let viewportHeight = max(120, frame.height - supportingRowsHeight - rowGap)
+        let panelHeight = min(frame.height, viewportHeight + supportingRowsHeight + rowGap)
+        return VStack(spacing: 8) {
+            if session.activePopover != nil {
+                ScrollView {
+                    OverlayInspectorView(session: session, document: document, width: frame.width)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(width: frame.width, height: viewportHeight, alignment: .topLeading)
+                .scrollIndicators(.automatic)
+            }
+            supportingDetails(document: document)
         }
+        .frame(width: frame.width, height: panelHeight, alignment: .topLeading)
+        .position(x: frame.midX, y: frame.midY)
         .captureGlassGroup()
     }
 
@@ -356,22 +387,8 @@ struct CaptureOverlayView: View {
         }
     }
 
-    private func toolbarDetails(document: CaptureDocument) -> some View {
+    private func supportingDetails(document: CaptureDocument) -> some View {
         Group {
-            if session.activePopover != nil {
-                CappedInspectorLayout(maximumHeight: toolbarCapacity.inspectorHeight) {
-                    ViewThatFits(in: .vertical) {
-                        OverlayInspectorView(session: session, document: document)
-                            .fixedSize(horizontal: false, vertical: true)
-                        ScrollView {
-                            OverlayInspectorView(session: session, document: document)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .scrollIndicators(.automatic)
-                    }
-                }
-                .transition(.opacity)
-            }
             if textAnchor != nil {
                 HStack {
                     TextField("Enter text", text: $textValue).textFieldStyle(.roundedBorder)
@@ -592,24 +609,6 @@ struct CaptureOverlayView: View {
 
     private func toPixels(_ rect: CGRect) -> CGRect { OverlayGeometry.pixels(from: rect, imageFrame: imageFrame, pixelSize: pixelSize) }
     private func toPoints(_ rect: CGRect) -> CGRect { OverlayGeometry.points(from: rect, imageFrame: imageFrame, pixelSize: pixelSize) }
-}
-
-/// Measures the fitting candidate before proposing a capped viewport. The same
-/// layout pass selects scrolling only for overflowing content, so no invisible
-/// fixed-height tail or asynchronous measurement state intercepts canvas input.
-private struct CappedInspectorLayout: Layout {
-    let maximumHeight: CGFloat
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        guard let inspector = subviews.first else { return .zero }
-        let natural = inspector.sizeThatFits(ProposedViewSize(width: 380, height: nil))
-        return CGSize(width: 380, height: min(natural.height, maximumHeight))
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        subviews.first?.place(at: bounds.origin, anchor: .topLeading,
-            proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
-    }
 }
 
 /// Positions the actual toolbar content without a preference/State feedback pass.

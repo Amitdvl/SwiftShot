@@ -83,6 +83,34 @@ final class OverlayGeometryTests: XCTestCase {
         }
     }
 
+    func testInspectorMovesBesideCanvasBeforeCoveringItsCenter() {
+        let screen = CGSize(width: 1280, height: 800)
+        let canvas = CGRect(x: 390, y: 150, width: 500, height: 500)
+        let toolbar = CGRect(x: 456, y: 674, width: 368, height: 80)
+        let frame = OverlayGeometry.inspectorFrame(canvas: canvas, toolbar: toolbar,
+            size: CGSize(width: 360, height: 400), screen: screen, topInset: 14)
+
+        XCTAssertLessThanOrEqual(frame.intersection(canvas).width * frame.intersection(canvas).height, 1)
+        XCTAssertLessThanOrEqual(frame.intersection(toolbar).width * frame.intersection(toolbar).height, 1)
+        XCTAssertGreaterThanOrEqual(frame.minX, 14)
+        XCTAssertGreaterThanOrEqual(frame.minY, 14)
+        XCTAssertLessThanOrEqual(frame.maxX, 1266)
+        XCTAssertLessThanOrEqual(frame.maxY, 786)
+    }
+
+    func testInspectorUsesLeastObstructingEdgeWhenCanvasFillsDisplay() {
+        let screen = CGSize(width: 800, height: 480)
+        let canvas = CGRect(x: 0, y: 0, width: 800, height: 480)
+        let frame = OverlayGeometry.inspectorFrame(canvas: canvas,
+            toolbar: CGRect(x: 220, y: 390, width: 360, height: 76),
+            size: CGSize(width: 340, height: 360), screen: screen, topInset: 40)
+
+        XCTAssertEqual(frame.width, 340)
+        XCTAssertEqual(frame.height, 360)
+        XCTAssertTrue(frame.minX == 14 || frame.maxX == 786,
+                      "A full-screen canvas should dock the inspector to a side edge")
+    }
+
     func testMoveAndResizeCannotEscapeDisplayOrInvertBounds() {
         let bounds = CGRect(x: 0, y: 0, width: 1000, height: 800)
         let rect = CGRect(x: 100, y: 100, width: 200, height: 150)

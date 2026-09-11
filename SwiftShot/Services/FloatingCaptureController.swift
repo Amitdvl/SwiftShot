@@ -340,11 +340,20 @@ final class FloatingCaptureController {
             let panel = Self.makePanel(kind: kind, image: image, visible: display.visibleFrame, cascadeIndex: entries.count)
             if let recentTitle { panel.title = recentTitle }
             let content = FloatingCaptureContent(image: image, payload: payload, isRecent: kind == .recent,
-                onCopy: { onCopy(snapshot.flattenedDocument(image: image)) }, onEdit: { [weak self] in
+                onCopy: { [weak self] in
+                    // Actions on a floating result are terminal. Close the
+                    // pin first so the completion surface cannot linger
+                    // behind the destination app or a newly-opened editor.
+                    self?.closeEntry(id)
+                    onCopy(snapshot.flattenedDocument(image: image))
+                }, onEdit: { [weak self] in
                     let editable = snapshot.editableDocument()
-                    if kind == .recent { self?.closeEntry(id) }
+                    self?.closeEntry(id)
                     onEdit(editable)
-                }, onSave: { onSave(snapshot.flattenedDocument(image: image)) },
+                }, onSave: { [weak self] in
+                    self?.closeEntry(id)
+                    onSave(snapshot.flattenedDocument(image: image))
+                },
                 onPin: { [weak self] in
                     let flattened = snapshot.flattenedDocument(image: image)
                     self?.closeEntry(id)
@@ -587,16 +596,27 @@ private struct FloatingCornerButton: View {
 
 private struct FloatingCornerButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
 
     func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 55, style: .continuous)
         configuration.label
             .foregroundStyle(.white)
-            .background(.black.opacity(configuration.isPressed ? 0.72 : 0.58), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(.white.opacity(0.2), lineWidth: 0.5)
+            .frame(width: 44, height: 44)
+            .background {
+                if reduceTransparency || contrast == .increased {
+                    shape.fill(Color(nsColor: .windowBackgroundColor).opacity(configuration.isPressed ? 0.96 : 0.84))
+                } else if #available(macOS 26.0, *) {
+                    Color.clear.glassEffect(.regular, in: shape)
+                } else {
+                    shape.fill(.regularMaterial)
+                }
             }
-            .shadow(color: .black.opacity(0.22), radius: 7, y: 3)
+            .overlay {
+                shape.strokeBorder(.white.opacity(contrast == .increased ? 0.42 : 0.14), lineWidth: 0.5)
+            }
+            .shadow(color: .black.opacity(0.16), radius: 8, y: 3)
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.1), value: configuration.isPressed)
     }
