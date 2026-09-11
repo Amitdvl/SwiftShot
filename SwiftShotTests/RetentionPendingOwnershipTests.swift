@@ -245,7 +245,8 @@ private struct RetentionOwnershipFixture {
         try defaults.set(JSONEncoder().encode(settings), forKey: "com.swiftshot.settings")
         app = AppState(defaults: defaults, recovery: store,
             backgrounds: BackgroundLibrary(rootURL: root.appendingPathComponent("backgrounds")),
-            presentsUI: false, captureService: RetentionOwnershipCapture(image: image),
+            presentsUI: false, persistUnsavedCaptures: true,
+            captureService: RetentionOwnershipCapture(image: image),
             overlay: presenter, diagnostics: nil, recoveryCoordinator: coordinator)
     }
 

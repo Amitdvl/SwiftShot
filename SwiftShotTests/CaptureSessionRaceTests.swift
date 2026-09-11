@@ -385,7 +385,8 @@ private struct Fixture {
         AppState(defaults: UserDefaults(suiteName: "SwiftShotRaceTests.\(UUID())")!,
                  recovery: recovery ?? RecoveryStore(root: root.appendingPathComponent("recovery")),
                  backgrounds: BackgroundLibrary(rootURL: root.appendingPathComponent("backgrounds")),
-                 exporter: exporter, clipboard: clipboard, presentsUI: false, captureService: capture,
+                 exporter: exporter, clipboard: clipboard, presentsUI: false, persistUnsavedCaptures: true,
+                 captureService: capture,
                  renderer: renderer, textRecognizer: recognizer, overlay: presenter)
     }
 }

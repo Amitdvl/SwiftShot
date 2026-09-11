@@ -79,7 +79,8 @@ final class ExportContainerPrivacyTests: XCTestCase {
         let app = AppState(defaults: defaults, recovery: store,
             backgrounds: BackgroundLibrary(rootURL: root.appendingPathComponent("backgrounds"),
                 bundleURL: root.appendingPathComponent("no-bundled-backgrounds")),
-            exporter: ExportService(), clipboard: clipboard, presentsUI: false, renderer: renderer, diagnostics: nil)
+            exporter: ExportService(), clipboard: clipboard, presentsUI: false, persistUnsavedCaptures: true,
+            renderer: renderer, diagnostics: nil)
         app.appSettings.saveDirectory = root.appendingPathComponent("exports", isDirectory: true).path
         app.appSettings.shareMaxDimension = 4
         app.appSettings.historyIndexingEnabled = false

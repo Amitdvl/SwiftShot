@@ -616,7 +616,7 @@ private struct HistoryRefreshFixture {
         try defaults.set(JSONEncoder().encode(settings), forKey: "com.swiftshot.settings")
         app = AppState(defaults: defaults, recovery: store,
             backgrounds: BackgroundLibrary(rootURL: root.appendingPathComponent("backgrounds")),
-            clipboard: HistoryRefreshClipboard(), presentsUI: false,
+            clipboard: HistoryRefreshClipboard(), presentsUI: false, persistUnsavedCaptures: true,
             captureService: HistoryRefreshCaptureService(), textRecognizer: recognizer,
             overlay: presenter, diagnostics: nil, recoveryCoordinator: recoveryCoordinator,
             indexingCoordinator: indexing, historyWindow: window)

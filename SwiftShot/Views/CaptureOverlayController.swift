@@ -59,7 +59,7 @@ final class CaptureOverlayController: CapturePresenting {
                 guard let session, self?.session === session else { return }
                 session.commitStyle()
                 session.onCancel()
-                NotificationService.showToast(title: "Display layout changed", subtitle: "Capture again on the current display. Your selected capture is available in Reopen Last Capture.")
+            NotificationService.showToast(title: "Display layout changed", subtitle: "Capture again on the current display.")
             }
         }
         for (surface, screen) in screens.enumerated() {

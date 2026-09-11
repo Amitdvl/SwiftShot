@@ -33,26 +33,19 @@ struct PreferencesView: View {
             Section("After selecting") {
                 Toggle("Copy immediately", isOn: $state.appSettings.immediateCopy)
                     .onChange(of: appState.appSettings.immediateCopy) { _, _ in appState.saveSettings() }
-                Text("Quick Copy uses its own preset (raw by default). Reopen Last Capture to edit it later.")
+                Text("Quick Copy stays in memory and goes straight to the clipboard. Save when you want to keep the image.")
                     .font(.caption).foregroundStyle(.secondary)
                 Toggle("Show a recent capture thumbnail", isOn: $state.appSettings.showRecentThumbnail)
                     .onChange(of: appState.appSettings.showRecentThumbnail) { _, _ in appState.saveSettings() }
 
             }
             Section("Recovery") {
-                Toggle("Private captures (no recovery or text index)", isOn: $state.appSettings.privateCapture)
+                Toggle("Private captures (no text index)", isOn: $state.appSettings.privateCapture)
                     .onChange(of: appState.appSettings.privateCapture) { _, _ in appState.saveSettings() }
                 Toggle("Search capture text locally", isOn: Binding(get: { appState.appSettings.historyIndexingEnabled },
                     set: { enabled in Task { await appState.setHistoryIndexing(enabled) } }))
-                Text("Editable recovery keeps original pixels behind crops and redactions. Private captures stay in memory unless you explicitly save or drag them. Disabling text search deletes its local index.")
+                Text("Unsaved captures stay in memory. Saved captures keep their editable originals locally. Disabling text search deletes its local index.")
                     .font(.caption).foregroundStyle(.secondary)
-                HStack {
-                    Text("Your latest capture stays available after you close the toolbar.")
-                        .font(.callout).foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Reopen Last Capture") { Task { await appState.reopenLastCapture() } }
-                        .disabled(appState.lastDocument == nil && appState.recoveredRecords.isEmpty)
-                }
             }
             if let status = appState.statusMessage {
                 Section { Text(status).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }

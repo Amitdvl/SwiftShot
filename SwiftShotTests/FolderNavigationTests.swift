@@ -89,6 +89,7 @@ private struct FolderNavigationFixture {
                presenter: FolderNavigationCapturePresenter = FolderNavigationCapturePresenter()) -> AppState {
         AppState(defaults: defaults, recovery: RecoveryStore(root: root.appendingPathComponent("recovery")),
             backgrounds: BackgroundLibrary(rootURL: root.appendingPathComponent("backgrounds")), presentsUI: false,
+            persistUnsavedCaptures: true,
             captureService: FolderNavigationCaptureService(image: image), overlay: presenter,
             scrolling: scrolling, directoryPicker: picker)
     }

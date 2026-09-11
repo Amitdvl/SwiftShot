@@ -239,6 +239,7 @@ private struct LifecycleFixture {
         try defaults.set(JSONEncoder().encode(settings), forKey: "com.swiftshot.settings")
         app = AppState(defaults: defaults, recovery: store,
             backgrounds: BackgroundLibrary(rootURL: root.appendingPathComponent("backgrounds")), presentsUI: false,
+            persistUnsavedCaptures: true,
             captureService: capture, overlay: presenter,
             recoveryCoordinator: coordinator, floatingCaptures: floating)
     }

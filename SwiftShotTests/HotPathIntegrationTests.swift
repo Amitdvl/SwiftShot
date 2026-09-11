@@ -473,7 +473,8 @@ private struct HotPathFixture {
         let coordinator = maximumRecoveryBytes.map { RecoveryCoordinator(store: recoveryStore, maximumPendingBytes: $0) }
         app = AppState(defaults: UserDefaults(suiteName: "SwiftShotHotPath.\(UUID())")!, recovery: store,
             backgrounds: BackgroundLibrary(rootURL: root.appendingPathComponent("backgrounds")), clipboard: clipboard,
-            presentsUI: false, captureService: captureProvider?(image) ?? capture, overlay: presenter, diagnostics: diagnostics,
+            presentsUI: false, persistUnsavedCaptures: true,
+            captureService: captureProvider?(image) ?? capture, overlay: presenter, diagnostics: diagnostics,
             recoveryCoordinator: coordinator)
     }
 

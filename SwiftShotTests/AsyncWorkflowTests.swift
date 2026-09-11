@@ -103,7 +103,8 @@ final class AsyncWorkflowTests: XCTestCase {
         let defaults = UserDefaults(suiteName: "SwiftShotAsyncTests.\(UUID())")!
         let app = AppState(defaults: defaults, recovery: recovery,
                            backgrounds: BackgroundLibrary(rootURL: root.appendingPathComponent("backgrounds")),
-                           exporter: exporter, clipboard: AsyncTestClipboard(), presentsUI: false)
+                           exporter: exporter, clipboard: AsyncTestClipboard(), presentsUI: false,
+                           persistUnsavedCaptures: true)
         app.appSettings.saveDirectory = root.appendingPathComponent("exports").path
         return app
     }

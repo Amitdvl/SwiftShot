@@ -33,7 +33,8 @@ final class FloatingCaptureTests: XCTestCase {
         let floating = RecentHandoffFloating()
         let app = AppState(defaults: defaults, recovery: RecoveryStore(root: root.appendingPathComponent("recovery")),
             backgrounds: BackgroundLibrary(rootURL: root.appendingPathComponent("backgrounds")), clipboard: clipboard,
-            presentsUI: true, renderer: renderer, overlay: RecentHandoffPresenter(), diagnostics: nil,
+            presentsUI: true, persistUnsavedCaptures: true, renderer: renderer,
+            overlay: RecentHandoffPresenter(), diagnostics: nil,
             floatingCaptures: floating)
         app.appSettings.showRecentThumbnail = true
         let document = CaptureDocument(image: image)

@@ -33,6 +33,9 @@ final class AppState {
     private let exporter: any CaptureExporting
     private let clipboard: any CaptureClipboard
     private let presentsUI: Bool
+    /// Unit fixtures can opt into the legacy durability contract while the
+    /// shipped app keeps unsaved captures session-only.
+    private let persistUnsavedCaptures: Bool
     private let overlay: any CapturePresenting
     private let diagnostics: PerformanceDiagnostics?
     private let focusTracker = CaptureFocusTracker()
@@ -86,6 +89,7 @@ final class AppState {
     init(defaults: UserDefaults = .standard, recovery: RecoveryStore = RecoveryStore(),
          backgrounds: BackgroundLibrary = BackgroundLibrary(), exporter: any CaptureExporting = ExportService(),
          clipboard: any CaptureClipboard = ClipboardService.shared, presentsUI: Bool = true,
+         persistUnsavedCaptures: Bool = false,
          captureService: any ScreenCaptureProviding = ScreenCaptureService.shared,
          renderer: any CaptureRendering = ImageRenderer(), textRecognizer: any TextRecognizing = OCRService.shared,
          overlay: any CapturePresenting = CaptureOverlayController(),
@@ -103,6 +107,7 @@ final class AppState {
         self.exporter = exporter
         self.clipboard = clipboard
         self.presentsUI = presentsUI
+        self.persistUnsavedCaptures = persistUnsavedCaptures
         self.historyWindow = historyWindow
         self.captureService = captureService
         self.renderer = renderer
@@ -170,7 +175,7 @@ final class AppState {
         guard token == sessionID else { return false }
         // Check admission without changing coordinator state before starting
         // the provider. A capacity failure must not launch a new capture.
-        if let current = lastDocument,
+        if let current = lastDocument, shouldPersist(current),
            recoveryAdmission?.matches(current, recoverySnapshot(current)) != true,
            !(await recoveryCoordinator.canEnqueue(recoverySnapshot(current))) {
             _ = await enqueueRecovery(current)
@@ -202,7 +207,7 @@ final class AppState {
         // The coordinator owns the old immutable pixels before navigation. Disk
         // encoding/fsync and history maintenance run independently of capture.
         CaptureLatencyTrace.shared.mark(.recoveryHandoffStarted, for: performanceRun)
-        if let current = lastDocument, !(await enqueueRecovery(current)) {
+        if let current = lastDocument, shouldPersist(current), !(await enqueueRecovery(current)) {
             captureTask.cancel()
             if sessionID == token {
                 reopen(current)
@@ -313,25 +318,31 @@ final class AppState {
         lastDocument = document
         appSettings.setStyle(document.edits.style, for: document.workflow)
         saveSettings()
+        // Captures remain in memory while the editor is open. Recovery and
+        // history begin only after an explicit Save request.
         persistenceTasks[document.id]?.cancel()
-        let persistenceToken = UUID()
-        persistenceTokens[document.id] = persistenceToken
-        persistenceTasks[document.id] = Task { [weak self] in
-            defer {
-                if self?.persistenceTokens[document.id] == persistenceToken {
-                    self?.persistenceTasks.removeValue(forKey: document.id)
-                    self?.persistenceTokens.removeValue(forKey: document.id)
+        persistenceTasks.removeValue(forKey: document.id)
+        persistenceTokens.removeValue(forKey: document.id)
+        if persistUnsavedCaptures {
+            let persistenceToken = UUID()
+            persistenceTokens[document.id] = persistenceToken
+            persistenceTasks[document.id] = Task { [weak self] in
+                defer {
+                    if self?.persistenceTokens[document.id] == persistenceToken {
+                        self?.persistenceTasks.removeValue(forKey: document.id)
+                        self?.persistenceTokens.removeValue(forKey: document.id)
+                    }
                 }
+                do { try await Task.sleep(for: .milliseconds(isNew ? 0 : 250)) } catch { return }
+                await self?.enqueueRecovery(document)
             }
-            do { try await Task.sleep(for: .milliseconds(isNew ? 0 : 250)) } catch { return }
-            await self?.enqueueRecovery(document)
         }
         if isNew && immediate { Task { await copy(document) } }
     }
 
     func closeEditor() {
         guard phase != .scrolling else { return }
-        if let document = lastDocument { Task { await enqueueRecovery(document) } }
+        if persistUnsavedCaptures, let document = lastDocument { Task { await enqueueRecovery(document) } }
         overlay.dismiss()
         if !isQuitting { floatingCaptures.setCaptureHidden(false) }
         diagnostics?.setCaptureHidden(false)
@@ -364,7 +375,7 @@ final class AppState {
         let token = beginSession()
         overlay.dismiss()
         phase = overlay.activeDocument == nil ? .idle : .editing
-        if let current = lastDocument, !(await preserve(current)) {
+        if let current = lastDocument, shouldPersist(current), !(await preserve(current)) {
             if sessionID == token { reopen(current) }
             return
         }
@@ -423,7 +434,7 @@ final class AppState {
         diagnostics?.mark(.copyRequested, for: performanceRun)
         let request = document.request(backgroundURL: backgrounds.url(for: document.edits.style.backgroundID),
             output: smaller ? .smallerShare(maxPixelDimension: appSettings.shareMaxDimension) : .native)
-        await enqueueRecovery(document)
+        if persistUnsavedCaptures { await enqueueRecovery(document) }
         guard !document.isDiscarded else { return false }
         showStatus("Preparing full-resolution image…", for: document)
         do {
@@ -438,12 +449,11 @@ final class AppState {
             if isCurrent(document, revision: revision, session: sessionToken) { closeEditor() }
             if phase == .idle && presentsUI {
                 if presentRecent && appSettings.showRecentThumbnail { await showRecent(document, request: request, image: result.image) }
-                else { NotificationService.showToast(title: "Copied", subtitle: "Reopen Last Capture to edit or save it.") }
+                else { NotificationService.showToast(title: "Copied", subtitle: "Not added to local history.") }
             }
             return true
         } catch {
-            // Failure paths may wait for durability; successful Copy must not.
-            await preserve(document)
+            if persistUnsavedCaptures { await preserve(document) }
             report(error.localizedDescription, retry: { [weak self] in Task { await self?.copy(document, smaller: smaller, presentRecent: presentRecent) } })
             return false
         }
@@ -458,7 +468,6 @@ final class AppState {
         diagnostics?.mark(.saveRequested, for: performanceRun)
         let request = document.request(backgroundURL: backgrounds.url(for: document.edits.style.backgroundID),
             output: smaller ? .smallerShare(maxPixelDimension: appSettings.shareMaxDimension) : .native)
-        await enqueueRecovery(document)
         guard !document.isDiscarded else { return }
         let directory = appSettings.saveDirectory
         showStatus("Saving full-resolution image…", for: document)
@@ -492,7 +501,7 @@ final class AppState {
                     if presentRecent {
                         await showRecent(document, request: request, image: result.image, completion: "Saved")
                     } else {
-                        NotificationService.showToast(title: "Saved", subtitle: "Reopen Last Capture to edit or save it again.")
+                        NotificationService.showToast(title: "Saved", subtitle: "Added to local history.")
                     }
                 } else {
                     NotificationService.showToast(title: "Screenshot saved", subtitle: "\(result.image.width) × \(result.image.height) px · \(url.deletingLastPathComponent().lastPathComponent)")
@@ -501,6 +510,8 @@ final class AppState {
             statusMessage = "Saved to \(url.lastPathComponent)"
             diagnostics?.mark(.saveComplete, for: performanceRun)
         } catch {
+            // Save was an explicit request, so retain the editable source if
+            // the destination fails and offer a retry from the error action.
             await preserve(document)
             report("Save failed: \(error.localizedDescription)",
                 retry: { [weak self] in Task { await self?.save(document, smaller: smaller, presentRecent: presentRecent) } },
@@ -518,7 +529,6 @@ final class AppState {
         exportCoordinator.claimClipboard(permit)
         var edits = document.edits
         edits.style.backgroundID = ""
-        await enqueueRecovery(document)
         do {
             let image = try await renderer.renderImage(RenderRequest(image: document.image, edits: edits, backgroundURL: nil,
                 documentID: document.id, revision: revision))
@@ -557,9 +567,16 @@ final class AppState {
             revision: document.revision, savedURL: document.savedURL, privateCapture: isPrivate(document))
     }
 
+    /// Unsaved captures are session-only. Once Save assigns a destination,
+    /// recovery may retain the editable source and history metadata.
+    private func shouldPersist(_ document: CaptureDocument) -> Bool {
+        persistUnsavedCaptures || document.savedURL != nil
+    }
+
     @discardableResult
     private func enqueueRecovery(_ document: CaptureDocument) async -> Bool {
         guard !document.isDiscarded else { return false }
+        guard shouldPersist(document) else { return true }
         do {
             let snapshot = recoverySnapshot(document)
             // Capture the precise accepted values before suspension: the editor
@@ -691,7 +708,7 @@ final class AppState {
             try await recoveryCoordinator.retry()
             // A failed admission is not in the coordinator's queue. Re-admit
             // the currently owned capture after freeing any pending capacity.
-            if let document = lastDocument, !document.isDiscarded {
+            if let document = lastDocument, shouldPersist(document), !document.isDiscarded {
                 try await recoveryCoordinator.preserve(recoverySnapshot(document))
             }
             recoveryProblem = nil
@@ -722,7 +739,9 @@ final class AppState {
         persistenceTasks.removeAll(); persistenceTokens.removeAll()
         do {
             try await indexing.stop()
-            if let document = lastDocument { try await recoveryCoordinator.enqueue(recoverySnapshot(document)) }
+            if let document = lastDocument, shouldPersist(document) {
+                try await recoveryCoordinator.enqueue(recoverySnapshot(document))
+            }
             try await recoveryCoordinator.shutdown()
             floatingCaptures.closeAll()
             await renderer.clearCache()
@@ -809,7 +828,7 @@ final class AppState {
         overlay.dismiss()
         diagnostics?.setCaptureHidden(true)
         if scrolling.isActive { await scrolling.cancelAndWait() }
-        if let document = lastDocument,
+        if let document = lastDocument, shouldPersist(document),
            recoveryAdmission?.matches(document, recoverySnapshot(document)) != true,
            !(await recoveryCoordinator.canEnqueue(recoverySnapshot(document))) {
             _ = await enqueueRecovery(document)
@@ -823,7 +842,7 @@ final class AppState {
         // and dismiss a transient menu or popover.
         let task = Task { try await captureService.captureRegion(displayID: region.displayID, rect: region.rect) }
         sessionCoordinator.regionTask = task
-        if let document = lastDocument, !(await enqueueRecovery(document)) {
+        if let document = lastDocument, shouldPersist(document), !(await enqueueRecovery(document)) {
             task.cancel()
             if token == sessionID { sessionCoordinator.regionTask = nil }
             if sessionID == token { reopen(document) }
@@ -953,7 +972,7 @@ final class AppState {
         overlay.dismiss()
         phase = .freezing
         defer { if token == sessionID && phase == .freezing { phase = .idle } }
-        if let document = lastDocument, !(await enqueueRecovery(document)) {
+        if let document = lastDocument, shouldPersist(document), !(await enqueueRecovery(document)) {
             if sessionID == token { reopen(document) }
             throw CaptureError.failed("Recovery could not take ownership of the current capture.")
         }
@@ -1008,7 +1027,7 @@ final class AppState {
         guard !isQuitting, phase != .scrolling else { return }
         let token = beginSession()
         overlay.dismiss()
-        if let current = lastDocument, !(await enqueueRecovery(current)) {
+        if let current = lastDocument, shouldPersist(current), !(await enqueueRecovery(current)) {
             if token == sessionID { reopen(current) }
             return
         }
@@ -1029,7 +1048,7 @@ final class AppState {
         } catch {
             if !(error is CancellationError) {
                 statusMessage = "\(completion) successfully; recent thumbnail unavailable: \(error.localizedDescription)"
-                NotificationService.showToast(title: completion, subtitle: "The recent thumbnail could not open. Reopen Last Capture to edit it.")
+                NotificationService.showToast(title: completion, subtitle: "The recent thumbnail could not open.")
             }
         }
     }

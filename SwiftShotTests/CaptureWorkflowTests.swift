@@ -50,6 +50,27 @@ final class CaptureWorkflowTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: XCTUnwrap(document.savedURL)), copied)
     }
 
+    func testUnsavedCopyStaysOffDiskUntilExplicitSave() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let recovery = RecoveryStore(root: root.appendingPathComponent("recovery"))
+        let clipboard = TestClipboard()
+        let app = makeState(root: root, recovery: recovery, clipboard: clipboard, persistUnsavedCaptures: false)
+        let document = CaptureDocument(image: try fixture())
+        app.lastDocument = document
+
+        let copied = await app.copy(document)
+        XCTAssertTrue(copied)
+        let transientRecords = try await recovery.records()
+        XCTAssertTrue(transientRecords.isEmpty,
+                      "Clipboard-only captures must not create recovery files")
+
+        await app.save(document)
+        let records = try await recovery.records()
+        XCTAssertEqual(records.map(\.id), [document.id])
+        XCTAssertNotNil(records.first?.savedPath)
+    }
+
     func testRapidCapturesAreIndependentAndStaleRevisionCannotOverwriteNewEdits() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -134,11 +155,13 @@ final class CaptureWorkflowTests: XCTestCase {
         XCTAssertThrowsError(try exporter.savePNGData(Data(), to: root.path))
     }
 
-    private func makeState(root: URL, recovery: RecoveryStore, clipboard: TestClipboard) -> AppState {
+    private func makeState(root: URL, recovery: RecoveryStore, clipboard: TestClipboard,
+                           persistUnsavedCaptures: Bool = true) -> AppState {
         let defaults = UserDefaults(suiteName: "SwiftShotTests.\(UUID())")!
         let state = AppState(defaults: defaults, recovery: recovery,
                              backgrounds: BackgroundLibrary(rootURL: root.appendingPathComponent("backgrounds")),
-                             clipboard: clipboard, presentsUI: false)
+                             clipboard: clipboard, presentsUI: false,
+                             persistUnsavedCaptures: persistUnsavedCaptures)
         state.appSettings.saveDirectory = root.appendingPathComponent("exports").path
         return state
     }

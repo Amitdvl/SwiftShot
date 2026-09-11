@@ -6,7 +6,7 @@ struct SwiftShotApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        MenuBarExtra("SwiftShot", systemImage: "camera.viewfinder") {
+        MenuBarExtra("SwiftShot", systemImage: "viewfinder.circle") {
             MenuBarView().environment(appState)
         }
     }
@@ -55,12 +55,6 @@ struct MenuBarView: View {
                 .disabled(appState.isCapturing)
             }
         }
-        Button("Quick Copy Region", systemImage: "document.on.document") {
-            Task { await appState.capture(mode: .region, quickCopy: true) }
-        }.disabled(appState.isCapturing)
-        Button("Private Region Capture", systemImage: "lock.shield") {
-            Task { await appState.capture(mode: .region, privateCapture: true) }
-        }.disabled(appState.isCapturing)
         Menu("More Capture Options") {
             Button("Copy Text from Screen", systemImage: "text.viewfinder") {
                 Task { await appState.capture(mode: .ocr) }
@@ -70,23 +64,6 @@ struct MenuBarView: View {
             }.disabled(appState.isCapturing)
             Button("Recapture Last Region") { Task { await appState.captureLastRegion() } }
                 .disabled(appState.lastRegion == nil || appState.isCapturing)
-        }
-        Divider()
-        Button("Reopen Last Capture") { Task { await appState.reopenLastCapture() } }
-            .disabled(appState.lastDocument == nil && appState.recoveredRecords.isEmpty)
-        Button("Capture History…", systemImage: "clock.arrow.circlepath") { appState.showHistory() }
-        let unsaved = appState.recoveredRecords.filter { $0.savedPath == nil }
-        if !unsaved.isEmpty {
-            Menu("Recover Unsaved (\(unsaved.count))") {
-                ForEach(unsaved) { record in
-                    Button(record.createdAt.formatted(date: .abbreviated, time: .standard)) {
-                        Task { await appState.reopenRecovery(record.id) }
-                    }
-                }
-            }
-        }
-        if let url = appState.lastDocument?.savedURL {
-            Button("Show Last Save in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
         }
         Divider()
         Button("Settings…") { appState.showPreferences() }.keyboardShortcut(",", modifiers: [.command])
