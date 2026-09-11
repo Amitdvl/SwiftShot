@@ -11,9 +11,9 @@ struct PreferencesView: View {
             shortcuts.tabItem { Label("Shortcuts", systemImage: "keyboard") }
             advanced.tabItem { Label("Advanced", systemImage: "ellipsis") }
         }
-        .buttonStyle(CaptureButtonStyle())
-        .buttonBorderShape(.capsule)
-        .frame(width: 570, height: 540)
+        // Preferences use native macOS controls so the hierarchy stays quiet and
+        // the controls remain compact beside the capture toolbar's branded chrome.
+        .frame(width: 620, height: 570)
     }
 
     private var general: some View {
@@ -83,21 +83,33 @@ struct PreferencesView: View {
     }
 
     private var backgroundTab: some View {
-        VStack(spacing: 16) {
-            StyleSampleView(library: appState.backgrounds, style: appState.appSettings.style)
-                .frame(height: 120)
-            BackgroundPickerView(library: appState.backgrounds, selection: Binding(
-                get: { appState.appSettings.style.backgroundID },
-                set: {
-                    var style = appState.appSettings.style(for: .region)
-                    style.backgroundID = $0
-                    appState.appSettings.setStyle(style, for: .region); appState.saveSettings()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Backgrounds").font(.title2.weight(.semibold))
+                    Text("Choose the canvas behind your captured image.")
+                        .font(.subheadline).foregroundStyle(.secondary)
                 }
-            ))
-            Text("Fine-tune padding, corners, and shadow from the capture toolbar.")
-                .font(.caption).foregroundStyle(.secondary)
+
+                StyleSampleView(library: appState.backgrounds, style: appState.appSettings.style)
+                    .frame(height: 118)
+
+                BackgroundPickerView(library: appState.backgrounds, selection: Binding(
+                    get: { appState.appSettings.style.backgroundID },
+                    set: {
+                        var style = appState.appSettings.style(for: .region)
+                        style.backgroundID = $0
+                        appState.appSettings.setStyle(style, for: .region); appState.saveSettings()
+                    }
+                ), showsHeader: false)
+
+                Text("Fine-tune padding, corners, and shadow from Presets or the capture toolbar.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 20)
         }
-        .padding(20)
+        .scrollIndicators(.hidden)
     }
 
     private var shortcuts: some View {

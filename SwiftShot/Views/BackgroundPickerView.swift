@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct BackgroundPickerView: View {
     let library: BackgroundLibrary
     @Binding var selection: String
+    var showsHeader = true
     @State private var importPanel: NSOpenPanel?
     @State private var windowReference = BackgroundPickerWindowReference()
     @State private var isDropTargeted = false
@@ -13,16 +14,13 @@ struct BackgroundPickerView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Backgrounds").font(.headline)
-                Spacer()
-                if library.isImporting { ProgressView().controlSize(.small) }
-                Button { beginImport() } label: {
-                    Label("Add", systemImage: "plus")
+            if showsHeader {
+                pickerHeader
+            } else {
+                HStack {
+                    Spacer(minLength: 0)
+                    importButton
                 }
-                .help("Add background images")
-                .disabled(library.isImporting)
-                .accessibilityLabel("Add Backgrounds")
             }
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 12) {
@@ -51,6 +49,7 @@ struct BackgroundPickerView: View {
                 .padding(3)
             }
             .frame(minHeight: 100, idealHeight: 185, maxHeight: 220)
+            .scrollIndicators(.hidden)
             .overlay {
                 if isDropTargeted {
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -60,11 +59,19 @@ struct BackgroundPickerView: View {
                 }
             }
             HStack(spacing: 12) {
-                Button("Remove", role: .destructive) { remove(selection) }
-                    .disabled(selection.isEmpty || library.isImporting)
-                    .help("Remove the selected background; bundled images can be restored")
-                Button("Undo Removal") { perform { try library.undoRemoval() } }
-                    .disabled(!library.canUndoRemoval || library.isImporting)
+                Button { remove(selection) } label: {
+                    Label("Remove", systemImage: "trash")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(selection.isEmpty || library.isImporting)
+                .help("Remove the selected background; bundled images can be restored")
+                Button { perform { try library.undoRemoval() } } label: {
+                    Label("Undo", systemImage: "arrow.uturn.backward")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(!library.canUndoRemoval || library.isImporting)
                 Spacer(minLength: 0)
                 Menu {
                     Button("Restore Bundled Backgrounds") { perform { try library.restoreBundled() } }
@@ -73,7 +80,6 @@ struct BackgroundPickerView: View {
                 .fixedSize()
                 .accessibilityLabel("Background Library Options")
             }
-            .font(.caption)
             Text("Drop images here to add them. Your originals stay untouched.")
                 .font(.caption).foregroundStyle(.secondary)
             if let message = importError ?? library.errorMessage {
@@ -100,6 +106,32 @@ struct BackgroundPickerView: View {
         }
     }
 
+    private var pickerHeader: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Backgrounds").font(.headline)
+                Text("Select a backdrop or add your own image.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            importButton
+        }
+    }
+
+    private var importButton: some View {
+        HStack(spacing: 8) {
+            if library.isImporting { ProgressView().controlSize(.small) }
+            Button { beginImport() } label: {
+                Label("Add", systemImage: "plus")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("Add background images")
+            .disabled(library.isImporting)
+            .accessibilityLabel("Add Backgrounds")
+        }
+    }
+
     private func tile<Content: View>(id: String, name: String, @ViewBuilder content: () -> Content) -> some View {
         Button { selection = id } label: {
             VStack(spacing: 5) {
@@ -116,7 +148,11 @@ struct BackgroundPickerView: View {
                         }
                     }
                     .overlay { Capsule().strokeBorder(selection == id ? Color.accentColor : Color.primary.opacity(0.1), lineWidth: selection == id ? 2 : 1) }
-                Text(name).font(.caption).lineLimit(1).foregroundStyle(.primary)
+                Text(name)
+                    .font(.caption)
+                    .fontWeight(selection == id ? .semibold : .regular)
+                    .lineLimit(1)
+                    .foregroundStyle(.primary)
             }
             .contentShape(Rectangle())
         }
