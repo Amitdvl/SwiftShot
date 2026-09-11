@@ -1,4 +1,4 @@
-# Rounded native polish — active September 11, 2026
+# Rounded native polish — delivered September 11, 2026
 
 This is the new scoped polish request, continuing from shipped source. The older product-finish and benchmark entries below are historical evidence, not this goal's acceptance gate. See [DESIGN.md](../DESIGN.md) for scope, non-goals, acceptance and removal decisions.
 
