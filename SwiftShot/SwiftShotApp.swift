@@ -6,7 +6,7 @@ struct SwiftShotApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        MenuBarExtra("SwiftShot", systemImage: "viewfinder.circle") {
+        MenuBarExtra("SwiftShot", systemImage: "camera.viewfinder") {
             MenuBarView().environment(appState)
         }
     }
