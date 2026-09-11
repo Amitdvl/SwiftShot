@@ -73,9 +73,7 @@ struct CaptureButtonStyle: ButtonStyle {
                 .frame(minWidth: compact ? 34 : nil, minHeight: 34)
                 .foregroundStyle(foreground)
                 .background(fill, in: Capsule())
-                .overlay {
-                    Capsule().strokeBorder(.primary.opacity(contrast == .increased ? 0.65 : (selected ? 0.18 : 0)), lineWidth: 1)
-                }
+                .overlay { if contrast == .increased { Capsule().strokeBorder(.primary.opacity(0.65), lineWidth: 1) } }
                 .contentShape(Capsule())
                 .opacity(enabled ? 1 : 0.4)
                 .onHover { hovered = $0 }

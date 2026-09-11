@@ -437,7 +437,9 @@ final class FloatingCaptureController {
 
     static func makePanel(kind: FloatingCaptureBudget.Kind, image: CGImage, visible: CGRect, cascadeIndex: Int = 0) -> FloatingCapturePanel {
         let controls: CGFloat = 44
-        let maximum = kind == .recent ? CGSize(width: 280, height: 200) : CGSize(width: 720, height: 560)
+        // Pins are intentionally compact; the image remains the focus and can
+        // still be resized when a larger working surface is useful.
+        let maximum = kind == .recent ? CGSize(width: 280, height: 200) : CGSize(width: 560, height: 420)
         let scale = min(maximum.width / CGFloat(image.width), maximum.height / CGFloat(image.height),
                         (visible.width - 40) / CGFloat(image.width), (visible.height - controls - 60) / CGFloat(image.height))
         let size = CGSize(width: max(220, CGFloat(image.width) * scale), height: max(100, CGFloat(image.height) * scale) + controls)
@@ -481,10 +483,13 @@ struct FloatingCaptureContent: View {
     let onPin: () -> Void
     let onClose: () -> Void
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack(alignment: .bottom) {
             FloatingEditedImageView(image: image)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(8)
+                // Reserve the compact control strip while keeping it visually
+                // over the image, so pins do not grow a second toolbar row.
+                .padding(.bottom, 44)
                 .onDrag { payload.itemProvider() }
                 .help("Drag this edited image into an app. Move the pin by its title bar.")
                 .accessibilityLabel("Edited screenshot. Drag to share image.")
@@ -496,9 +501,14 @@ struct FloatingCaptureContent: View {
                 }
             HStack(spacing: 5) {
                 Button("Copy", action: onCopy)
-                    .buttonStyle(CaptureButtonStyle(prominent: true))
+                    .buttonStyle(CaptureButtonStyle(prominent: true, compact: true))
                     .keyboardShortcut("c", modifiers: .command)
-                Button("Save", action: onSave).keyboardShortcut("s", modifiers: .command)
+                    .help("Copy (⌘C)")
+                Button(action: onSave) { Image(systemName: "square.and.arrow.down") }
+                    .buttonStyle(CaptureButtonStyle(compact: true))
+                    .accessibilityLabel("Save")
+                    .help("Save (⌘S)")
+                    .keyboardShortcut("s", modifiers: .command)
                 Button(action: onEdit) { Image(systemName: "pencil.tip") }
                     .buttonStyle(CaptureButtonStyle(compact: true))
                     .accessibilityLabel("Edit capture").help("Edit (⌘E)")
@@ -514,7 +524,6 @@ struct FloatingCaptureContent: View {
             .captureChrome(capsule: true)
             .padding(.horizontal, 5)
             .frame(height: 44)
-
         }
     }
 }

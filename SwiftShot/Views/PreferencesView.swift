@@ -6,8 +6,7 @@ struct PreferencesView: View {
     var body: some View {
         TabView {
             general.tabItem { Label("General", systemImage: "gearshape") }
-            backgroundTab.tabItem { Label("Backgrounds", systemImage: "photo.on.rectangle.angled") }
-            WorkflowPresetsView().tabItem { Label("Presets", systemImage: "slider.horizontal.3") }
+            WorkflowPresetsView().tabItem { Label("Presets & Styles", systemImage: "slider.horizontal.3") }
             shortcuts.tabItem { Label("Shortcuts", systemImage: "keyboard") }
             advanced.tabItem { Label("Advanced", systemImage: "ellipsis") }
         }
@@ -82,36 +81,6 @@ struct PreferencesView: View {
         }.formStyle(.grouped)
     }
 
-    private var backgroundTab: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Backgrounds").font(.title2.weight(.semibold))
-                    Text("Choose the canvas behind your captured image.")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                }
-
-                StyleSampleView(library: appState.backgrounds, style: appState.appSettings.style)
-                    .frame(height: 118)
-
-                BackgroundPickerView(library: appState.backgrounds, selection: Binding(
-                    get: { appState.appSettings.style.backgroundID },
-                    set: {
-                        var style = appState.appSettings.style(for: .region)
-                        style.backgroundID = $0
-                        appState.appSettings.setStyle(style, for: .region); appState.saveSettings()
-                    }
-                ), showsHeader: false)
-
-                Text("Fine-tune padding, corners, and shadow from Presets or the capture toolbar.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 20)
-        }
-        .scrollIndicators(.hidden)
-    }
-
     private var shortcuts: some View {
         Form {
             Section("Global shortcuts") {
@@ -144,31 +113,5 @@ struct PreferencesView: View {
             Text("Shortcuts are registered when SwiftShot launches. Selection is limited to the display where you start dragging, preserving its native resolution.")
                 .font(.caption).foregroundStyle(.secondary)
         }.formStyle(.grouped)
-    }
-}
-
-private struct StyleSampleView: View {
-    let library: BackgroundLibrary
-    let style: CaptureStyle
-    var body: some View {
-        ZStack {
-            if let background = library.thumbnail(for: style.backgroundID) {
-                Image(nsImage: background).resizable().scaledToFill()
-            } else { Rectangle().fill(.quaternary.opacity(0.4)) }
-            VStack(alignment: .leading, spacing: 9) {
-                HStack(spacing: 5) {
-                    ForEach([Color.red, .yellow, .green], id: \.self) { color in Circle().fill(color.opacity(0.8)).frame(width: 6, height: 6) }
-                    Spacer()
-                    Text("SwiftShot").font(.caption2).foregroundStyle(.secondary)
-                }
-                Text("A little more polished.").font(.callout.weight(.medium))
-                Text("Original pixels. Your own style.").font(.caption).foregroundStyle(.secondary)
-            }
-            .padding(14).frame(width: 270)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: style.backgroundID.isEmpty ? 0 : 10))
-            .shadow(color: .black.opacity(0.18), radius: style.backgroundID.isEmpty ? 0 : 8, y: 4)
-        }
-        .clipped().clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .accessibilityLabel("Background preview")
     }
 }

@@ -140,6 +140,7 @@ struct BackgroundPickerView: View {
                     .frame(maxWidth: .infinity)
                     .clipped()
                     .clipShape(Capsule())
+                    .overlay { Capsule().fill(Color.primary.opacity(selection == id ? 0.10 : 0)) }
                     .overlay(alignment: .topTrailing) {
                         if selection == id {
                             Image(systemName: "checkmark.circle.fill")
@@ -147,7 +148,6 @@ struct BackgroundPickerView: View {
                                 .padding(4)
                         }
                     }
-                    .overlay { Capsule().strokeBorder(selection == id ? Color.accentColor : Color.primary.opacity(0.1), lineWidth: selection == id ? 2 : 1) }
                 Text(name)
                     .font(.caption)
                     .fontWeight(selection == id ? .semibold : .regular)

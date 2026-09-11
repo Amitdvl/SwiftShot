@@ -6,12 +6,12 @@ struct WorkflowPresetsView: View {
     @State private var presetName = ""
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                Picker("Workflow", selection: $workflow) {
+        Form {
+            Section("Workflow style") {
+                Picker("Apply to", selection: $workflow) {
                     ForEach(CaptureWorkflow.allCases, id: \.self) { value in Text(value.label).tag(value) }
                 }
-                Text("Each workflow keeps its own style. New workflows start raw; applying a preset here changes only the selected workflow.")
+                Text("Backgrounds and canvas settings belong to each workflow here, so there is one place to manage them.")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
                     Button("Use Raw Pixels") { updateStyle(CaptureStyle()) }
@@ -19,25 +19,26 @@ struct WorkflowPresetsView: View {
                         Button("Use Last Capture's Style") { updateStyle(document.edits.style) }
                     }
                 }
+            }
+            Section("Background library") {
                 BackgroundPickerView(library: appState.backgrounds, selection: Binding(get: {
                     appState.appSettings.style(for: workflow).backgroundID
                 }, set: { id in
                     var style = appState.appSettings.style(for: workflow)
                     style.backgroundID = id; updateStyle(style)
                 }))
+                .frame(maxHeight: 270)
+            }
+            Section("Canvas") {
                 slider("Padding", key: \.padding, range: 0...240)
                 slider("Corners", key: \.cornerRadius, range: 0...64)
                 slider("Shadow", key: \.shadow, range: 0...64)
-                Divider()
-                Text("Named Presets").font(.headline)
+            }
+            Section("Named presets") {
                 HStack {
                     TextField("Preset name", text: $presetName).textFieldStyle(.roundedBorder)
-                    Button("Save Preset") {
-                        let name = String(presetName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(60))
-                        guard !name.isEmpty, appState.appSettings.presets.count < 32 else { return }
-                        appState.appSettings.presets.append(CaptureStylePreset(name: name, style: appState.appSettings.style(for: workflow)))
-                        appState.saveSettings(); presetName = ""
-                    }.disabled(presetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || appState.appSettings.presets.count >= 32)
+                    Button("Save Preset") { savePreset() }
+                        .disabled(presetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || appState.appSettings.presets.count >= 32)
                 }
                 ForEach(appState.appSettings.presets) { preset in
                     HStack {
@@ -49,15 +50,23 @@ struct WorkflowPresetsView: View {
                         }
                     }
                 }
-                Text("Up to 32 presets. Deleting a preset does not change existing captures.")
+                Text("Up to 32 presets. Deleting one does not change existing captures.")
                     .font(.caption).foregroundStyle(.secondary)
-            }.padding(20)
+            }
         }
+        .formStyle(.grouped)
     }
 
     private func updateStyle(_ style: CaptureStyle) {
         appState.appSettings.setStyle(style, for: workflow)
         appState.saveSettings()
+    }
+
+    private func savePreset() {
+        let name = String(presetName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(60))
+        guard !name.isEmpty, appState.appSettings.presets.count < 32 else { return }
+        appState.appSettings.presets.append(CaptureStylePreset(name: name, style: appState.appSettings.style(for: workflow)))
+        appState.saveSettings(); presetName = ""
     }
 
     private func slider(_ title: String, key: WritableKeyPath<CaptureStyle, Double>, range: ClosedRange<Double>) -> some View {
