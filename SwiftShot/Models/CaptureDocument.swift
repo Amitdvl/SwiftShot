@@ -3,10 +3,20 @@ import Observation
 
 /// All edit geometry uses original-image pixels, with a top-left origin.
 struct CaptureStyle: Codable, Equatable, Sendable {
+    /// Keep decorative canvas growth bounded so fit-to-window viewers do not
+    /// shrink the captured content noticeably just because a frame is enabled.
+    static let maxInputPadding: Double = 4_096
+    static let maxEffectivePadding: Int = 96
+
     var backgroundID: String = ""
     var padding: Double = 64
     var cornerRadius: Double = 12
     var shadow: Double = 18
+
+    var effectivePadding: Int {
+        guard !backgroundID.isEmpty, padding.isFinite, padding > 0 else { return 0 }
+        return Int(min(padding, Double(Self.maxEffectivePadding)).rounded())
+    }
 }
 
 struct AnnotationColor: Codable, Equatable, Sendable {

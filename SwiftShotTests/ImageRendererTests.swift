@@ -72,6 +72,26 @@ final class ImageRendererTests: XCTestCase {
         }
     }
 
+    func testFramedPaddingIsCappedWithoutResamplingTheCapture() async throws {
+        let url = try backgroundFile()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let source = fixture(width: 2936, height: 1630)
+        let style = CaptureStyle(backgroundID: "custom", padding: 240, cornerRadius: 0, shadow: 0)
+        let result = try await ImageRenderer().render(RenderRequest(image: source,
+            edits: CaptureEdits(crop: CGRect(x: 0, y: 0, width: source.width, height: source.height), style: style),
+            backgroundURL: url))
+
+        XCTAssertEqual(style.effectivePadding, CaptureStyle.maxEffectivePadding)
+        XCTAssertEqual(result.image.width, source.width + CaptureStyle.maxEffectivePadding * 2)
+        XCTAssertEqual(result.image.height, source.height + CaptureStyle.maxEffectivePadding * 2)
+        let output = pixels(result.image)
+        let input = pixels(source)
+        XCTAssertEqual(pixel(output, width: result.image.width,
+                             x: CaptureStyle.maxEffectivePadding + 100,
+                             y: CaptureStyle.maxEffectivePadding + 100),
+                       pixel(input, width: source.width, x: 100, y: 100))
+    }
+
     func testCropUsesTopLeftCoordinates() async throws {
         let source = fixture()
         let result = try await ImageRenderer().render(RenderRequest(image: source,

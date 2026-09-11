@@ -306,10 +306,10 @@ actor RecoveryStore {
         guard [crop.minX, crop.minY, crop.width, crop.height].allSatisfy(\.isFinite),
               crop == crop.integral, crop.width >= 1, crop.height >= 1,
               CGRect(x: 0, y: 0, width: dimensions.width, height: dimensions.height).contains(crop),
-              [style.padding, style.cornerRadius, style.shadow].allSatisfy({ $0.isFinite && (0...16_384).contains($0) }) else {
+              [style.padding, style.cornerRadius, style.shadow].allSatisfy({ $0.isFinite && (0...CaptureStyle.maxInputPadding).contains($0) }) else {
             throw CaptureError.failed("The capture's crop or styling geometry is invalid.")
         }
-        let padding = style.backgroundID.isEmpty ? 0 : Int(style.padding.rounded())
+        let padding = style.effectivePadding
         let width = Int(crop.width) + padding * 2
         let height = Int(crop.height) + padding * 2
         guard width <= 32_768, height <= 32_768, width * height <= 64_000_000 else {
