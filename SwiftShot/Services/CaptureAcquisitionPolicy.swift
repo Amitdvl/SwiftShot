@@ -14,6 +14,14 @@ struct CapturePixelDimensions: Sendable {
 }
 
 enum CaptureAcquisitionPolicy {
+    /// Normal windows and application-owned transient surfaces (menus,
+    /// popovers, and dropdowns) live below the pop-up menu level. SwiftShot's
+    /// screen-sized capture overlay is deliberately above this range and must
+    /// never become a selectable source window.
+    static func isSelectableWindowLayer(_ layer: Int) -> Bool {
+        (0...101).contains(layer)
+    }
+
     static func targets(mode: CaptureMode, pointer: CGPoint, displays: [CaptureDisplayLayout]) throws -> [CaptureDisplayLayout] {
         guard !displays.isEmpty else {
             throw CaptureError.failed("No display is available. Reconnect your display and try again.")

@@ -159,7 +159,7 @@ final class ScreenCaptureService: ScreenCaptureProviding {
                 originalIdentity = WindowIdentity(frame: selected.frame, ownerPID: pid, layer: selected.windowLayer)
             }
             CaptureLatencyTrace.shared.mark(.windowMetadataResolved, for: traceRunID)
-            guard window.isOnScreen, window.windowLayer == 0,
+            guard window.isOnScreen, CaptureAcquisitionPolicy.isSelectableWindowLayer(window.windowLayer),
                   let identity = currentWindowIdentity(id: id),
                   identity == originalIdentity,
                   identity.frame == window.frame,
@@ -284,11 +284,13 @@ final class ScreenCaptureService: ScreenCaptureProviding {
         configuration.captureResolution = .best
         configuration.showsCursor = false
         configuration.scalesToFit = false
+        // Capture the composed surface with a stable backing. Without this,
+        // translucent SwiftUI/AppKit windows (especially menus and popovers)
+        // can reveal the window beneath them and look washed out in the
+        // resulting region or window image.
+        configuration.shouldBeOpaque = true
         if window {
             configuration.ignoreShadowsSingleWindow = true
-            // Preserve macOS window-edge alpha rather than compositing rounded
-            // pixels against white before the editor applies its background.
-            configuration.shouldBeOpaque = false
         }
         return configuration
     }
@@ -353,12 +355,14 @@ final class ScreenCaptureService: ScreenCaptureProviding {
         let availableWindows = (content.windows + ownWindows).filter { seenWindowIDs.insert($0.windowID).inserted }
         let windowInfo = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []
         let orderedIDs = windowInfo.compactMap { row -> UInt32? in
-            guard (row[kCGWindowLayer as String] as? Int) == 0 else { return nil }
+            guard let layer = row[kCGWindowLayer as String] as? Int,
+                  CaptureAcquisitionPolicy.isSelectableWindowLayer(layer) else { return nil }
             return row[kCGWindowNumber as String] as? UInt32
         }
         let rank = Dictionary(orderedIDs.enumerated().map { ($0.element, $0.offset) }, uniquingKeysWith: { first, _ in first })
         return availableWindows.filter {
-            $0.isOnScreen && $0.windowLayer == 0 && $0.frame.width > 20 && $0.frame.height > 20
+            $0.isOnScreen && CaptureAcquisitionPolicy.isSelectableWindowLayer($0.windowLayer) &&
+                $0.frame.width > 20 && $0.frame.height > 20
         }.sorted { rank[$0.windowID, default: Int.max] < rank[$1.windowID, default: Int.max] }
 
     }
@@ -388,7 +392,8 @@ final class ScreenCaptureService: ScreenCaptureProviding {
         guard let rows = CGWindowListCopyWindowInfo(.optionIncludingWindow, id) as? [[String: Any]],
               let row = rows.first(where: { ($0[kCGWindowNumber as String] as? UInt32) == id }),
               (row[kCGWindowIsOnscreen as String] as? Bool) == true,
-              let layer = row[kCGWindowLayer as String] as? Int, layer == 0,
+              let layer = row[kCGWindowLayer as String] as? Int,
+              CaptureAcquisitionPolicy.isSelectableWindowLayer(layer),
               let bounds = row[kCGWindowBounds as String] as? [String: Any],
               let frame = CGRect(dictionaryRepresentation: bounds as CFDictionary),
               let ownerPID = row[kCGWindowOwnerPID as String] as? Int32 else { return nil }

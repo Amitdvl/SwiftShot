@@ -56,7 +56,8 @@ final class WindowSelectorMetadataStore<Window, Display> {
         var nextWindows: [UInt32: WindowEntry] = [:]
         var nextDisplays: [UInt32: DisplayEntry] = [:]
         for entry in windows {
-            guard entry.id != 0, entry.ownerPID > 0, entry.layer == 0,
+            guard entry.id != 0, entry.ownerPID > 0,
+                  CaptureAcquisitionPolicy.isSelectableWindowLayer(entry.layer),
                   Self.validFrame(entry.frame), nextWindows[entry.id] == nil else {
                 throw CaptureError.failed("Window selector metadata is unavailable. Press Esc and start a new capture.")
             }

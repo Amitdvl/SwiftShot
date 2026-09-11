@@ -7,6 +7,7 @@ Capture, annotate, and copy screenshots from your Mac’s menu bar.
 Select a region on a frozen screen, capture a window or display, or copy text from your screen. Edit beside the capture, then copy the result or save a PNG. Native Swift and SwiftUI. No account or cloud service required.
 
 Visible SwiftShot windows and panels are part of display and region captures, so you can document the tool itself as you work.
+Window capture also recognizes application-owned menus and dropdowns. Pinning is an explicit action in the capture toolbar; the recent thumbnail can be enabled separately in Settings.
 
 ## Capture to clipboard
 

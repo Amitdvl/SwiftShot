@@ -16,6 +16,14 @@ final class CaptureAcquisitionPolicyTests: XCTestCase {
         XCTAssertEqual(selected.map(\.id), [20])
     }
 
+    func testTransientApplicationWindowLayersRemainSelectableButCaptureOverlayDoesNot() {
+        XCTAssertTrue(CaptureAcquisitionPolicy.isSelectableWindowLayer(0))
+        XCTAssertTrue(CaptureAcquisitionPolicy.isSelectableWindowLayer(101))
+        XCTAssertFalse(CaptureAcquisitionPolicy.isSelectableWindowLayer(-1))
+        XCTAssertFalse(CaptureAcquisitionPolicy.isSelectableWindowLayer(102))
+        XCTAssertFalse(CaptureAcquisitionPolicy.isSelectableWindowLayer(1000))
+    }
+
     func testFullscreenFallsBackToFirstDisplayWhenPointerIsOutsideLayout() throws {
         let selected = try CaptureAcquisitionPolicy.targets(mode: .fullscreen, pointer: CGPoint(x: 5000, y: 5000), displays: displays)
         XCTAssertEqual(selected.map(\.id), [10])
@@ -150,7 +158,7 @@ final class CaptureAcquisitionPolicyTests: XCTestCase {
     func testWindowConfigurationRetainsAlphaAndExcludesShadowAtNativeResolution() throws {
         let size = try CaptureAcquisitionPolicy.dimensions(points: CGSize(width: 500, height: 300), scale: 2)
         let configuration = ScreenCaptureService.configuration(size: size, window: true)
-        XCTAssertFalse(configuration.shouldBeOpaque)
+        XCTAssertTrue(configuration.shouldBeOpaque)
         XCTAssertTrue(configuration.ignoreShadowsSingleWindow)
         XCTAssertFalse(configuration.showsCursor)
         XCTAssertFalse(configuration.scalesToFit)

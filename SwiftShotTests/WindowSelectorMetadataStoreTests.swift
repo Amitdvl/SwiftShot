@@ -39,6 +39,20 @@ final class WindowSelectorMetadataStoreTests: XCTestCase {
         XCTAssertThrowsError(try store.lookup(owner: UUID(), windowID: 99, displayID: 10, layout: layout))
     }
 
+    func testPopupLayerWindowMetadataIsRetainedForTransientUi() throws {
+        let store = Store(), owner = UUID()
+        store.begin(owner: owner, layout: layout)
+        try store.publish(owner: owner, windows: [entry(layer: 101)], displays: [displayEntry()])
+        let result = try XCTUnwrap(store.lookup(owner: owner, windowID: 7, displayID: 10, layout: layout))
+        XCTAssertEqual(result.window.layer, 101)
+    }
+
+    func testOverlayLayerWindowMetadataIsRejected() throws {
+        let store = Store(), owner = UUID()
+        store.begin(owner: owner, layout: layout)
+        XCTAssertThrowsError(try store.publish(owner: owner, windows: [entry(layer: 102)], displays: [displayEntry()]))
+    }
+
     func testKnownWindowCannotBeResolvedOnNonintersectingOrUnavailableDisplay() throws {
         let store = Store(), owner = UUID()
         store.begin(owner: owner, layout: layout)
@@ -202,8 +216,9 @@ final class WindowSelectorMetadataStoreTests: XCTestCase {
     }
 
     private func entry(id: UInt32 = 7, frame: CGRect = CGRect(x: 10, y: 10, width: 40, height: 30),
+                       layer: Int = 0,
                        value: MetadataValue = MetadataValue()) -> Store.WindowEntry {
-        Store.WindowEntry(id: id, frame: frame, ownerPID: 42, layer: 0, value: value)
+        Store.WindowEntry(id: id, frame: frame, ownerPID: 42, layer: layer, value: value)
     }
 
     private func displayEntry(id: UInt32 = 10, frame: CGRect = CGRect(x: 0, y: 0, width: 100, height: 100),

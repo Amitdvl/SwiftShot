@@ -22,6 +22,8 @@ Borrow the hierarchy: keep the image dominant, make completing a capture immedia
 - Copy and Save retain labels and their shortcuts. Annotation, solid redaction and crop remain directly accessible. Styling moves under More; advanced actions retain their implementations.
 - Screenshot pixels, crop/selection geometry, annotation geometry and the renderer never use the chrome modifier. Existing explicitly chosen export styling is preserved. UI rounding never becomes a raw-export mask.
 - Display and region captures include visible SwiftShot windows and panels. The capture filter no longer removes the app's own process, while the existing explicit window identity checks remain unchanged.
+- Window selection admits normal and popup-menu layers while rejecting SwiftShot's screen-sized overlay; opaque capture backing keeps translucent app surfaces from blending with the desktop.
+- Pinning is explicit from the compact capture toolbar. Recent floating thumbnails are opt-in.
 
 ## Removal ledger
 

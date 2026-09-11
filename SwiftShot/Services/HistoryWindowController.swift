@@ -253,6 +253,11 @@ final class HistoryWindowController: NSWindowController {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 620),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
             window.title = "SwiftShot History"
+            // History is a self-capture target. Give ScreenCaptureKit an
+            // opaque window backing so translucent edges cannot blend with
+            // the app underneath while the window is being captured.
+            window.isOpaque = true
+            window.backgroundColor = .windowBackgroundColor
             window.contentMinSize = NSSize(width: 680, height: 440)
             window.isReleasedWhenClosed = false
             window.contentViewController = NSHostingController(rootView: CaptureHistoryView(model: model))

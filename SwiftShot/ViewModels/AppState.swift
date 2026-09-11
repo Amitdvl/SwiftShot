@@ -1072,9 +1072,15 @@ final class AppState {
             preferencesWindow.makeKeyAndOrderFront(nil)
             return
         }
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 570, height: 540),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 570),
                               styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "SwiftShot Settings"
+        // Keep the app's own window visually stable when ScreenCaptureKit
+        // composites it with the desktop. SwiftUI still owns the interior
+        // materials and previews, but the window itself never exposes the
+        // underlying app through translucent edges.
+        window.isOpaque = true
+        window.backgroundColor = .windowBackgroundColor
         window.contentView = NSHostingView(rootView: PreferencesView().environment(self))
         window.isReleasedWhenClosed = false
         window.center()
