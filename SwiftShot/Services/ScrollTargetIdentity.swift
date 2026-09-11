@@ -19,6 +19,10 @@ struct ScrollTargetIdentity {
             scrollFrame == other.scrollFrame && CFEqual(window, other.window) && CFEqual(scrollArea, other.scrollArea)
     }
 
+    static func isScrollSurfaceRole(_ role: String?, hasVerticalScrollBar: Bool) -> Bool {
+        role == kAXScrollAreaRole || role == "AXWebArea" || hasVerticalScrollBar
+    }
+
     /// The only production resolution path consumes already prepared scalar
     /// metadata. AX and native input remain synchronous on the main actor, with
     /// the same deadline that began before metadata left that actor.
@@ -82,7 +86,12 @@ struct ScrollTargetIdentity {
         for _ in 0..<32 {
             guard let current = candidate, ContinuousClock.now < deadline else { break }
             let role = attribute(current, kAXRoleAttribute) as? String
-            if scrollArea == nil && (role == kAXScrollAreaRole || element(attribute(current, kAXVerticalScrollBarAttribute)) != nil) {
+            // Chromium exposes the document under the pointer as AXWebArea,
+            // not AXScrollArea. It is still a stable, window-owned native
+            // input surface; its scrollbar is optional and is queried later
+            // only as end-of-content evidence.
+            if scrollArea == nil && Self.isScrollSurfaceRole(role,
+                hasVerticalScrollBar: element(attribute(current, kAXVerticalScrollBarAttribute)) != nil) {
                 scrollArea = current
             }
             if window == nil && role == kAXWindowRole { window = current }

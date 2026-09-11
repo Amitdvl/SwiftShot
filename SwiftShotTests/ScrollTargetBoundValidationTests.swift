@@ -12,6 +12,13 @@ final class ScrollTargetBoundValidationTests: XCTestCase {
     private typealias Window = ScrollTargetWindowPolicy.Window
     private typealias Input = ScrollTargetWindowPolicy.InputObservation
 
+    func testWebAreaIsAcceptedAsAnAutomaticScrollSurface() {
+        XCTAssertTrue(ScrollTargetIdentity.isScrollSurfaceRole("AXWebArea", hasVerticalScrollBar: false))
+        XCTAssertTrue(ScrollTargetIdentity.isScrollSurfaceRole(kAXScrollAreaRole, hasVerticalScrollBar: false))
+        XCTAssertTrue(ScrollTargetIdentity.isScrollSurfaceRole("AXGroup", hasVerticalScrollBar: true))
+        XCTAssertFalse(ScrollTargetIdentity.isScrollSurfaceRole("AXGroup", hasVerticalScrollBar: false))
+    }
+
     // Break: parser defaults/replaces metadata rather than preserving the bound row.
     func testExactOnScreenMetadataParsesAndAdmitsOriginalWindow() throws {
         let parsed = try XCTUnwrap(ScrollTargetWindowMetadata.parseBound([row()], windowID: 417))
