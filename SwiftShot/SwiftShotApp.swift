@@ -18,7 +18,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+        // MenuBarExtra apps have no ordinary window for AppKit's automatic
+        // termination heuristic to count as user-visible activity. SwiftShot
+        // must stay resident so its status item and global shortcuts remain
+        // available after launch.
+        ProcessInfo.processInfo.automaticTerminationSupportEnabled = true
+        ProcessInfo.processInfo.disableAutomaticTermination("SwiftShot menu bar app")
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         AppState.shared.start()
     }
