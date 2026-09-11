@@ -190,10 +190,13 @@ final class AppState {
         CaptureLatencyTrace.shared.mark(.captureWindowsHidden, for: performanceRun)
         let service = captureService
         let captureTask = Task {
+            defer { GlobalShortcutManager.shared.dismissMenuTracking() }
             try Task.checkCancellation()
             CaptureLatencyTrace.shared.mark(.freezeTaskStarted, for: performanceRun)
-            if mode == .window { return try await service.freeze(mode: mode, selectorID: token) }
-            return try await service.freeze(mode: mode)
+            let screens: [FrozenScreen]
+            if mode == .window { screens = try await service.freeze(mode: mode, selectorID: token) }
+            else { screens = try await service.freeze(mode: mode) }
+            return screens
         }
         freezeTask = captureTask
         // The coordinator owns the old immutable pixels before navigation. Disk

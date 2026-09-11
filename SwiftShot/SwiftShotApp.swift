@@ -38,10 +38,22 @@ struct MenuBarView: View {
 
     var body: some View {
         ForEach([CaptureMode.region, .window, .fullscreen], id: \.self) { mode in
-            Button { Task { await appState.capture(mode: mode) } } label: {
-                Label(mode.label, systemImage: mode.icon)
+            if mode == .region {
+                Button { Task { await appState.capture(mode: mode) } } label: {
+                    Label(mode.label, systemImage: mode.icon)
+                }
+                // Carbon hot keys are swallowed while this status menu tracks.
+                // The region default is also a native menu key equivalent, so
+                // pressing ⌘⇧2 while the dropdown is open starts the same
+                // capture action before AppKit dismisses the menu.
+                .keyboardShortcut("2", modifiers: [.command, .shift])
+                .disabled(appState.isCapturing)
+            } else {
+                Button { Task { await appState.capture(mode: mode) } } label: {
+                    Label(mode.label, systemImage: mode.icon)
+                }
+                .disabled(appState.isCapturing)
             }
-            .disabled(appState.isCapturing)
         }
         Button("Quick Copy Region", systemImage: "document.on.document") {
             Task { await appState.capture(mode: .region, quickCopy: true) }
