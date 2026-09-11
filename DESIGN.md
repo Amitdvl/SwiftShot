@@ -24,6 +24,7 @@ Borrow the hierarchy: keep the image dominant, make completing a capture immedia
 - Display and region captures include visible SwiftShot windows and panels. The capture filter no longer removes the app's own process, while the existing explicit window identity checks remain unchanged.
 - Window selection admits normal and popup-menu layers while rejecting SwiftShot's screen-sized overlay and system compositor chrome such as the Dock; opaque capture backing keeps translucent app surfaces from blending with the desktop.
 - Pinning is explicit from the compact capture toolbar. Recent floating thumbnails are opt-in.
+- Preferences use one Presets & Styles surface for workflow backgrounds, canvas tuning and named presets; the standalone Backgrounds tab was only a second entry point to the same picker and is removed.
 
 ## Removal ledger
 
