@@ -67,17 +67,22 @@ struct AppSettings: Codable, Sendable {
             shortcuts.append(quickCopy)
         }
         // Migrate only the exact mislabeled old default modifier pair.
-        if (try container.decodeIfPresent(Int.self, forKey: .version) ?? 1) < 2 {
+        let version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        if version < 2 {
             for index in shortcuts.indices where shortcuts[index].modifiers == 0x900 && shortcuts[index].displayString.hasPrefix("⌘⇧") {
                 shortcuts[index].modifiers = 0x300
             }
         }
+        // Version 2 encoded the old automatic floating thumbnail default. The
+        // new behavior is opt-in, so migrate that legacy value off once while
+        // preserving an explicit choice in current settings.
+        if version < 3 { showRecentThumbnail = false }
         for index in shortcuts.indices { shortcuts[index].refreshLabel() }
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(2, forKey: .version)
+        try container.encode(3, forKey: .version)
         try container.encode(saveDirectory, forKey: .saveDirectory)
         try container.encode(style, forKey: .style)
         try container.encode(quickCopyStyle, forKey: .quickCopyStyle)

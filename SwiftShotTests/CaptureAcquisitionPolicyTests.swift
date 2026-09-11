@@ -24,6 +24,15 @@ final class CaptureAcquisitionPolicyTests: XCTestCase {
         XCTAssertFalse(CaptureAcquisitionPolicy.isSelectableWindowLayer(1000))
     }
 
+    func testSystemOwnedDisplaySurfacesAreNotSelectableWindowContent() {
+        XCTAssertFalse(CaptureAcquisitionPolicy.isSelectableWindowOwner("Dock"))
+        XCTAssertFalse(CaptureAcquisitionPolicy.isSelectableWindowOwner("Window Server"))
+        XCTAssertFalse(CaptureAcquisitionPolicy.isSelectableWindowOwner("Control Center"))
+        XCTAssertFalse(CaptureAcquisitionPolicy.isSelectableWindowOwner("universalAccessAuthWarn"))
+        XCTAssertTrue(CaptureAcquisitionPolicy.isSelectableWindowOwner("TextEdit"))
+        XCTAssertTrue(CaptureAcquisitionPolicy.isSelectableWindowOwner("SwiftShot"))
+    }
+
     func testFullscreenFallsBackToFirstDisplayWhenPointerIsOutsideLayout() throws {
         let selected = try CaptureAcquisitionPolicy.targets(mode: .fullscreen, pointer: CGPoint(x: 5000, y: 5000), displays: displays)
         XCTAssertEqual(selected.map(\.id), [10])

@@ -361,7 +361,8 @@ final class ScreenCaptureService: ScreenCaptureProviding {
         }
         let rank = Dictionary(orderedIDs.enumerated().map { ($0.element, $0.offset) }, uniquingKeysWith: { first, _ in first })
         return availableWindows.filter {
-            $0.isOnScreen && CaptureAcquisitionPolicy.isSelectableWindowLayer($0.windowLayer) &&
+            $0.isOnScreen && CaptureAcquisitionPolicy.isSelectableWindowOwner($0.owningApplication?.applicationName) &&
+                CaptureAcquisitionPolicy.isSelectableWindowLayer($0.windowLayer) &&
                 $0.frame.width > 20 && $0.frame.height > 20
         }.sorted { rank[$0.windowID, default: Int.max] < rank[$1.windowID, default: Int.max] }
 

@@ -14,12 +14,25 @@ struct CapturePixelDimensions: Sendable {
 }
 
 enum CaptureAcquisitionPolicy {
+    private static let nonContentWindowOwners: Set<String> = [
+        "Dock", "Window Server", "Control Center", "Notification Center", "SystemUIServer",
+        "universalAccessAuthWarn"
+    ]
+
     /// Normal windows and application-owned transient surfaces (menus,
     /// popovers, and dropdowns) live below the pop-up menu level. SwiftShot's
     /// screen-sized capture overlay is deliberately above this range and must
     /// never become a selectable source window.
     static func isSelectableWindowLayer(_ layer: Int) -> Bool {
         (0...101).contains(layer)
+    }
+
+    /// System-owned surfaces such as the Dock and menu bar can report a full
+    /// display-sized frame. They are compositor chrome, never user content,
+    /// and must not win the live window hit test.
+    static func isSelectableWindowOwner(_ owner: String?) -> Bool {
+        guard let owner, !owner.isEmpty else { return false }
+        return !nonContentWindowOwners.contains(owner)
     }
 
     static func targets(mode: CaptureMode, pointer: CGPoint, displays: [CaptureDisplayLayout]) throws -> [CaptureDisplayLayout] {

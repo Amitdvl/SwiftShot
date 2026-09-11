@@ -8,9 +8,15 @@ final class QuickWorkflowTests: XCTestCase {
     }
 
     func testRecentFloatingResultPreferenceCanStillBeEnabledExplicitly() throws {
-        let json = #"{"saveDirectory":"/tmp","showRecentThumbnail":true}"#
+        let json = #"{"saveDirectory":"/tmp","version":3,"showRecentThumbnail":true}"#
         let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
         XCTAssertTrue(settings.showRecentThumbnail)
+    }
+
+    func testLegacyAutomaticFloatingResultIsMigratedOff() throws {
+        let json = #"{"saveDirectory":"/tmp","version":2,"showRecentThumbnail":true}"#
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+        XCTAssertFalse(settings.showRecentThumbnail)
     }
 
     // Losing the dedicated quick-copy route forces every raw capture through editing.
