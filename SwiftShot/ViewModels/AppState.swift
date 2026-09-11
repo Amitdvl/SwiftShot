@@ -165,13 +165,42 @@ final class AppState {
         overlay.dismiss()
         diagnostics?.setCaptureHidden(true)
         CaptureLatencyTrace.shared.mark(.scrollDrainStarted, for: performanceRun)
-        await scrolling.cancelAndWait()
+        if scrolling.isActive { await scrolling.cancelAndWait() }
         CaptureLatencyTrace.shared.mark(.scrollDrainFinished, for: performanceRun)
         guard token == sessionID else { return false }
+        // Check admission without changing coordinator state before starting
+        // the provider. A capacity failure must not launch a new capture.
+        if let current = lastDocument,
+           recoveryAdmission?.matches(current, recoverySnapshot(current)) != true,
+           !(await recoveryCoordinator.canEnqueue(recoverySnapshot(current))) {
+            _ = await enqueueRecovery(current)
+            if sessionID == token {
+                reopen(current)
+                showStatus("Recovery could not take ownership. Save this capture or retry recovery before navigating.", for: current, isError: true)
+            }
+            return false
+        }
+        // Start the compositor acquisition before recovery and navigation work.
+        // Menu-bar dropdowns and other transient surfaces can disappear as soon
+        // as SwiftShot changes focus; the capture task must claim the current
+        // frame while those surfaces are still present.
+        overlay.dismiss()
+        floatingCaptures.setCaptureHidden(true)
+        NotificationService.dismiss()
+        CaptureLatencyTrace.shared.mark(.captureWindowsHidden, for: performanceRun)
+        let service = captureService
+        let captureTask = Task {
+            try Task.checkCancellation()
+            CaptureLatencyTrace.shared.mark(.freezeTaskStarted, for: performanceRun)
+            if mode == .window { return try await service.freeze(mode: mode, selectorID: token) }
+            return try await service.freeze(mode: mode)
+        }
+        freezeTask = captureTask
         // The coordinator owns the old immutable pixels before navigation. Disk
         // encoding/fsync and history maintenance run independently of capture.
         CaptureLatencyTrace.shared.mark(.recoveryHandoffStarted, for: performanceRun)
         if let current = lastDocument, !(await enqueueRecovery(current)) {
+            captureTask.cancel()
             if sessionID == token {
                 reopen(current)
                 showStatus("Recovery could not take ownership. Save this capture or retry recovery before navigating.", for: current, isError: true)
@@ -179,29 +208,13 @@ final class AppState {
             return false
         }
         CaptureLatencyTrace.shared.mark(.recoveryHandoffFinished, for: performanceRun)
-        guard sessionID == token else { return false }
-        overlay.dismiss()
-        floatingCaptures.setCaptureHidden(true)
-        // Persistent SwiftShot windows stay visible so display and region
-        // captures can document the app itself. Capture-owned overlays and
-        // floating results are hidden above; those transient surfaces should
-        // never be part of the source pixels.
-        NotificationService.dismiss()
-        CaptureLatencyTrace.shared.mark(.captureWindowsHidden, for: performanceRun)
+        guard sessionID == token else { captureTask.cancel(); return false }
         statusMessage = "Freezing screen…"
         defer { if sessionID == token { freezeTask = nil } }
         do {
-            let service = captureService
-            let task = Task {
-                try Task.checkCancellation()
-                CaptureLatencyTrace.shared.mark(.freezeTaskStarted, for: performanceRun)
-                if mode == .window { return try await service.freeze(mode: mode, selectorID: token) }
-                return try await service.freeze(mode: mode)
-            }
-            freezeTask = task
             let screens = try await withTaskCancellationHandler {
-                try await task.value
-            } onCancel: { task.cancel() }
+                try await captureTask.value
+            } onCancel: { captureTask.cancel() }
             try Task.checkCancellation()
             CaptureLatencyTrace.shared.mark(.freezeReturned, for: performanceRun)
             guard sessionID == token else { return false }
@@ -700,7 +713,7 @@ final class AppState {
         overlay.dismiss()
         _ = beginSession()
         phase = .idle
-        await scrolling.cancelAndWait()
+        if scrolling.isActive { await scrolling.cancelAndWait() }
         while exportCoordinator.hasActiveExports { try? await Task.sleep(for: .milliseconds(25)) }
         for task in persistenceTasks.values { task.cancel() }
         persistenceTasks.removeAll(); persistenceTokens.removeAll()
@@ -792,21 +805,29 @@ final class AppState {
         phase = .freezing
         overlay.dismiss()
         diagnostics?.setCaptureHidden(true)
-        await scrolling.cancelAndWait()
+        if scrolling.isActive { await scrolling.cancelAndWait() }
+        if let document = lastDocument,
+           recoveryAdmission?.matches(document, recoverySnapshot(document)) != true,
+           !(await recoveryCoordinator.canEnqueue(recoverySnapshot(document))) {
+            _ = await enqueueRecovery(document)
+            if token == sessionID { reopen(document) }
+            return false
+        }
+        overlay.dismiss()
+        floatingCaptures.setCaptureHidden(true)
+        NotificationService.dismiss()
+        // Claim the current compositor frame before recovery can change focus
+        // and dismiss a transient menu or popover.
+        let task = Task { try await captureService.captureRegion(displayID: region.displayID, rect: region.rect) }
+        sessionCoordinator.regionTask = task
         if let document = lastDocument, !(await enqueueRecovery(document)) {
+            task.cancel()
+            if token == sessionID { sessionCoordinator.regionTask = nil }
             if sessionID == token { reopen(document) }
             return false
         }
-        guard token == sessionID else { return false }
-        overlay.dismiss()
-        floatingCaptures.setCaptureHidden(true)
-        // Keep visible Settings/History windows in the source frame. The
-        // capture overlay, floating results, and notifications are transient
-        // capture chrome and are hidden before acquisition.
-        NotificationService.dismiss()
+        guard token == sessionID else { task.cancel(); sessionCoordinator.regionTask = nil; return false }
         do {
-            let task = Task { try await captureService.captureRegion(displayID: region.displayID, rect: region.rect) }
-            sessionCoordinator.regionTask = task
             defer { if token == sessionID { sessionCoordinator.regionTask = nil } }
             let image = try await withTaskCancellationHandler { try await task.value } onCancel: { task.cancel() }
             try Task.checkCancellation()

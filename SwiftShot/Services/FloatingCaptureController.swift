@@ -377,9 +377,12 @@ final class FloatingCaptureController {
 
     /// Hide only panels owned here while the next screenshot is frozen. Their
     /// payloads and user-created pins remain intact, without window enumeration.
+    /// A user-created pin is source content and must stay visible so Window and
+    /// Region capture can capture it. Only the optional recent thumbnail is
+    /// transient capture chrome.
     func setCaptureHidden(_ hidden: Bool) {
         captureHidden = hidden
-        for entry in entries.values {
+        for entry in entries.values where entry.kind == .recent {
             if hidden { entry.panel.orderOut(nil) }
             else { entry.panel.orderFrontRegardless() }
         }

@@ -164,13 +164,14 @@ final class CaptureAcquisitionPolicyTests: XCTestCase {
         XCTAssertEqual(size.reservedBytes, 204_800)
     }
 
-    func testWindowConfigurationRetainsAlphaAndExcludesShadowAtNativeResolution() throws {
+    func testWindowConfigurationIsOpaqueAndExcludesShadowAtNativeResolution() throws {
         let size = try CaptureAcquisitionPolicy.dimensions(points: CGSize(width: 500, height: 300), scale: 2)
         let configuration = ScreenCaptureService.configuration(size: size, window: true)
         XCTAssertTrue(configuration.shouldBeOpaque)
         XCTAssertTrue(configuration.ignoreShadowsSingleWindow)
         XCTAssertFalse(configuration.showsCursor)
         XCTAssertFalse(configuration.scalesToFit)
+        XCTAssertTrue(CFEqual(configuration.colorSpaceName, CGColorSpace.sRGB as CFString))
         XCTAssertEqual(configuration.width, 1000)
         XCTAssertEqual(configuration.height, 600)
         XCTAssertEqual(configuration.pixelFormat, kCVPixelFormatType_32BGRA)

@@ -284,6 +284,9 @@ final class ScreenCaptureService: ScreenCaptureProviding {
         configuration.captureResolution = .best
         configuration.showsCursor = false
         configuration.scalesToFit = false
+        // Normalize wide-gamut display captures so contrast stays consistent
+        // when the result is previewed or exported in another color space.
+        configuration.colorSpaceName = CGColorSpace.sRGB as CFString
         // Capture the composed surface with a stable backing. Without this,
         // translucent SwiftUI/AppKit windows (especially menus and popovers)
         // can reveal the window beneath them and look washed out in the

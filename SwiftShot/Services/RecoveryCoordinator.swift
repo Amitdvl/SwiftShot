@@ -72,6 +72,29 @@ actor RecoveryCoordinator {
         self.maximumPendingCaptures = max(0, maximumPendingCaptures)
     }
 
+    /// Check admission without changing ownership. Capture startup uses this
+    /// gate before launching compositor work, so a rejected recovery handoff
+    /// cannot leave a new capture request running in the background.
+    func canEnqueue(_ snapshot: RecoverySnapshot) -> Bool {
+        guard !isShuttingDown else { return false }
+        if snapshot.privateCapture {
+            return privateIDs.contains(snapshot.id) || privateIDs.count + discardedIDs.count < maximumLifetimeTombstones
+        }
+        guard !privateIDs.contains(snapshot.id), !discardedIDs.contains(snapshot.id) else { return true }
+        if let old = pending[snapshot.id]?.snapshot {
+            guard snapshot.revision >= old.revision else { return true }
+            if old.revision == snapshot.revision && old.edits == snapshot.edits && old.savedURL == snapshot.savedURL { return true }
+        }
+        if let stamp = durable[snapshot.id] {
+            guard snapshot.revision >= stamp.revision else { return true }
+            if stamp.matches(snapshot) { return true }
+        }
+        let bytes = pending.values.reduce(0) { $0 + $1.snapshot.estimatedBytes }
+            - (pending[snapshot.id]?.snapshot.estimatedBytes ?? 0) + snapshot.estimatedBytes
+        let count = pending.count + (pending[snapshot.id] == nil ? 1 : 0)
+        return bytes <= maximumPendingBytes && count <= maximumPendingCaptures
+    }
+
     /// Returns once this actor owns the snapshot, not once its PNG is on disk.
     func enqueue(_ snapshot: RecoverySnapshot) throws {
         guard !isShuttingDown else { throw Failure.shuttingDown }

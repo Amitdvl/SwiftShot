@@ -73,16 +73,17 @@ struct AppSettings: Codable, Sendable {
                 shortcuts[index].modifiers = 0x300
             }
         }
-        // Version 2 encoded the old automatic floating thumbnail default. The
-        // new behavior is opt-in, so migrate that legacy value off once while
-        // preserving an explicit choice in current settings.
-        if version < 3 { showRecentThumbnail = false }
+        // Versions 2 and 3 could persist the old automatic floating thumbnail
+        // behavior. Reset it once more for upgraded installs so an existing
+        // user never gets an unexpected pin after updating. Version 4 and later
+        // preserve the user's explicit opt-in choice.
+        if version < 4 { showRecentThumbnail = false }
         for index in shortcuts.indices { shortcuts[index].refreshLabel() }
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(3, forKey: .version)
+        try container.encode(4, forKey: .version)
         try container.encode(saveDirectory, forKey: .saveDirectory)
         try container.encode(style, forKey: .style)
         try container.encode(quickCopyStyle, forKey: .quickCopyStyle)

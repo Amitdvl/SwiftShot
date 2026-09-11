@@ -8,13 +8,19 @@ final class QuickWorkflowTests: XCTestCase {
     }
 
     func testRecentFloatingResultPreferenceCanStillBeEnabledExplicitly() throws {
-        let json = #"{"saveDirectory":"/tmp","version":3,"showRecentThumbnail":true}"#
+        let json = #"{"saveDirectory":"/tmp","version":4,"showRecentThumbnail":true}"#
         let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
         XCTAssertTrue(settings.showRecentThumbnail)
     }
 
     func testLegacyAutomaticFloatingResultIsMigratedOff() throws {
         let json = #"{"saveDirectory":"/tmp","version":2,"showRecentThumbnail":true}"#
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+        XCTAssertFalse(settings.showRecentThumbnail)
+    }
+
+    func testVersionThreeAutomaticThumbnailIsMigratedOff() throws {
+        let json = #"{"saveDirectory":"/tmp","version":3,"showRecentThumbnail":true}"#
         let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
         XCTAssertFalse(settings.showRecentThumbnail)
     }
@@ -44,6 +50,7 @@ final class QuickWorkflowTests: XCTestCase {
         let encoded = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(settings)) as? [String: Any])
         XCTAssertEqual(encoded["privateCapture"] as? Bool, true)
         XCTAssertEqual(encoded["showRecentThumbnail"] as? Bool, false)
+        XCTAssertEqual(encoded["version"] as? Int, 4)
         XCTAssertEqual(encoded["historyIndexingEnabled"] as? Bool, false)
         XCTAssertEqual(encoded["retentionDays"] as? Int, 7)
         XCTAssertEqual(encoded["shareMaxDimension"] as? Int, 1600)
