@@ -7,54 +7,92 @@ struct WorkflowPresetsView: View {
 
     var body: some View {
         Form {
-            Section("Workflow style") {
-                Picker("Apply to", selection: $workflow) {
-                    ForEach(CaptureWorkflow.allCases, id: \.self) { value in Text(value.label).tag(value) }
-                }
-                Text("Backgrounds and canvas settings belong to each workflow here, so there is one place to manage them.")
-                    .font(.caption).foregroundStyle(.secondary)
+            Section {
                 HStack {
-                    Button("Use Raw Pixels") { updateStyle(CaptureStyle()) }
-                    if let document = appState.lastDocument {
-                        Button("Use Last Capture's Style") { updateStyle(document.edits.style) }
+                    Text("Workflow")
+                    Spacer()
+                    Picker("Workflow", selection: $workflow) {
+                        ForEach(CaptureWorkflow.allCases, id: \.self) { value in
+                            Text(value.label).tag(value)
+                        }
                     }
+                    .labelsHidden()
+                    .fixedSize()
+                    Menu {
+                        Button("Use Raw Pixels", systemImage: "circle.slash") {
+                            updateStyle(CaptureStyle())
+                        }
+                        if let document = appState.lastDocument {
+                            Button("Use Last Capture's Style", systemImage: "clock.arrow.circlepath") {
+                                updateStyle(document.edits.style)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .buttonStyle(CaptureButtonStyle(compact: true))
+                    .accessibilityLabel("Style Actions")
                 }
             }
-            Section("Background library") {
+            Section("Background") {
                 BackgroundPickerView(library: appState.backgrounds, selection: Binding(get: {
                     appState.appSettings.style(for: workflow).backgroundID
                 }, set: { id in
                     var style = appState.appSettings.style(for: workflow)
                     style.backgroundID = id; updateStyle(style)
-                }))
-                .frame(maxHeight: 270)
+                }), showsHeader: false, showsImportButton: true,
+                   showsLibraryActions: false, gridHeight: 132)
             }
-            Section("Canvas") {
+            Section("Style") {
                 slider("Padding", key: \.padding, range: 0...240)
                 slider("Corners", key: \.cornerRadius, range: 0...64)
                 slider("Shadow", key: \.shadow, range: 0...64)
             }
-            Section("Named presets") {
+            Section {
                 HStack {
-                    TextField("Preset name", text: $presetName).textFieldStyle(.roundedBorder)
-                    Button("Save Preset") { savePreset() }
-                        .disabled(presetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || appState.appSettings.presets.count >= 32)
+                    TextField("Name this style", text: $presetName)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit(savePreset)
+                    Button("Save", systemImage: "plus") { savePreset() }
+                        .buttonStyle(CaptureButtonStyle(prominent: true))
+                        .disabled(!canSavePreset)
                 }
                 ForEach(appState.appSettings.presets) { preset in
                     HStack {
-                        Text(preset.name)
+                        Image(systemName: "wand.and.stars")
+                            .foregroundStyle(.secondary)
+                        Text(preset.name).lineLimit(1)
                         Spacer()
-                        Button("Apply") { updateStyle(preset.style) }
-                        Button("Delete", role: .destructive) {
-                            appState.appSettings.presets.removeAll { $0.id == preset.id }; appState.saveSettings()
+                        Button("Use") { updateStyle(preset.style) }
+                            .buttonStyle(CaptureButtonStyle())
+                        Button(role: .destructive) {
+                            appState.appSettings.presets.removeAll { $0.id == preset.id }
+                            appState.saveSettings()
+                        } label: {
+                            Image(systemName: "trash")
                         }
+                        .buttonStyle(CaptureButtonStyle(compact: true))
+                        .help("Delete \(preset.name)")
+                        .accessibilityLabel("Delete \(preset.name)")
                     }
                 }
-                Text("Up to 32 presets. Deleting one does not change existing captures.")
-                    .font(.caption).foregroundStyle(.secondary)
+            } header: {
+                HStack {
+                    Text("Presets")
+                    Spacer()
+                    Text("\(appState.appSettings.presets.count)/32")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var canSavePreset: Bool {
+        !presetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            appState.appSettings.presets.count < 32
     }
 
     private func updateStyle(_ style: CaptureStyle) {
@@ -71,12 +109,16 @@ struct WorkflowPresetsView: View {
 
     private func slider(_ title: String, key: WritableKeyPath<CaptureStyle, Double>, range: ClosedRange<Double>) -> some View {
         HStack {
-            Text(title).frame(width: 60, alignment: .leading)
+            Text(title).frame(width: 62, alignment: .leading)
             Slider(value: Binding(get: { appState.appSettings.style(for: workflow)[keyPath: key] }, set: { value in
                 var style = appState.appSettings.style(for: workflow)
                 style[keyPath: key] = value.rounded(); updateStyle(style)
             }), in: range)
-            Text("\(Int(appState.appSettings.style(for: workflow)[keyPath: key]))").monospacedDigit().frame(width: 30)
-        }.font(.caption).disabled(appState.appSettings.style(for: workflow).backgroundID.isEmpty)
+            Text("\(Int(appState.appSettings.style(for: workflow)[keyPath: key]))")
+                .font(.caption.monospacedDigit())
+                .frame(width: 30, alignment: .trailing)
+        }
+        .font(.caption)
+        .disabled(appState.appSettings.style(for: workflow).backgroundID.isEmpty)
     }
 }

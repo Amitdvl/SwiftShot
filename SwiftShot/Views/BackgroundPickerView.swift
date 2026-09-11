@@ -6,6 +6,9 @@ struct BackgroundPickerView: View {
     let library: BackgroundLibrary
     @Binding var selection: String
     var showsHeader = true
+    var showsImportButton = true
+    var showsLibraryActions = true
+    var gridHeight: CGFloat?
     @State private var importPanel: NSOpenPanel?
     @State private var windowReference = BackgroundPickerWindowReference()
     @State private var isDropTargeted = false
@@ -16,7 +19,7 @@ struct BackgroundPickerView: View {
         VStack(alignment: .leading, spacing: 12) {
             if showsHeader {
                 pickerHeader
-            } else {
+            } else if showsImportButton {
                 HStack {
                     Spacer(minLength: 0)
                     importButton
@@ -48,7 +51,9 @@ struct BackgroundPickerView: View {
                 }
                 .padding(3)
             }
-            .frame(minHeight: 100, idealHeight: 185, maxHeight: 220)
+            .frame(minHeight: gridHeight ?? 100,
+                   idealHeight: gridHeight ?? 185,
+                   maxHeight: gridHeight ?? 220)
             .scrollIndicators(.hidden)
             .overlay {
                 if isDropTargeted {
@@ -58,30 +63,32 @@ struct BackgroundPickerView: View {
                         .allowsHitTesting(false)
                 }
             }
-            HStack(spacing: 12) {
-                Button { remove(selection) } label: {
-                    Label("Remove", systemImage: "trash")
+            if showsLibraryActions {
+                HStack(spacing: 12) {
+                    Button { remove(selection) } label: {
+                        Label("Remove", systemImage: "trash")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(selection.isEmpty || library.isImporting)
+                    .help("Remove the selected background; bundled images can be restored")
+                    Button { perform { try library.undoRemoval() } } label: {
+                        Label("Undo", systemImage: "arrow.uturn.backward")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(!library.canUndoRemoval || library.isImporting)
+                    Spacer(minLength: 0)
+                    Menu {
+                        Button("Restore Bundled Backgrounds") { perform { try library.restoreBundled() } }
+                    } label: { Image(systemName: "ellipsis.circle") }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .accessibilityLabel("Background Library Options")
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(selection.isEmpty || library.isImporting)
-                .help("Remove the selected background; bundled images can be restored")
-                Button { perform { try library.undoRemoval() } } label: {
-                    Label("Undo", systemImage: "arrow.uturn.backward")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(!library.canUndoRemoval || library.isImporting)
-                Spacer(minLength: 0)
-                Menu {
-                    Button("Restore Bundled Backgrounds") { perform { try library.restoreBundled() } }
-                } label: { Image(systemName: "ellipsis.circle") }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .accessibilityLabel("Background Library Options")
+                Text("Drop images here to add them. Your originals stay untouched.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            Text("Drop images here to add them. Your originals stay untouched.")
-                .font(.caption).foregroundStyle(.secondary)
             if let message = importError ?? library.errorMessage {
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
