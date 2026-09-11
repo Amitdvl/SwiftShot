@@ -145,8 +145,8 @@ final class CaptureDragSourceView: NSView, NSDraggingSource {
         super.init(frame: frameRect)
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
-        setAccessibilityLabel("Drag edited image")
-        toolTip = "Drag the edited PNG into an app or Finder."
+        setAccessibilityLabel("Drag to export")
+        toolTip = "Drag the edited PNG to another app or Finder."
     }
     required init?(coder: NSCoder) { nil }
     override var intrinsicContentSize: NSSize { NSSize(width: 170, height: 30) }
@@ -156,7 +156,7 @@ final class CaptureDragSourceView: NSView, NSDraggingSource {
         NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: bounds.height / 2, yRadius: bounds.height / 2).fill()
         NSColor.separatorColor.setStroke()
         NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: bounds.height / 2, yRadius: bounds.height / 2).stroke()
-        let label = failed ? "Drag unavailable — retry" : (preparation == nil ? "Drag Edited Image" : "Preparing image…")
+        let label = failed ? "Drag unavailable — retry" : (preparation == nil ? "Drag to Export" : "Preparing image…")
         let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12),
                                                         .foregroundColor: NSColor.labelColor]
         let size = (label as NSString).size(withAttributes: attributes)

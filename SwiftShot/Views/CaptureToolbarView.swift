@@ -135,33 +135,55 @@ struct OverlayInspectorView: View {
                     Button("Done") { session.annotationTool = nil; session.activePopover = nil }
                 }.font(.caption)
             case .more:
+                Text("More")
+                    .font(.title3.weight(.semibold))
                 Button("Background & Style", systemImage: "photo.on.rectangle") {
                     session.commitStyle(); session.activePopover = .backgrounds
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 if session.mode == .ocr {
                     Button("Recognize Text Again", systemImage: "text.viewfinder") { session.onOCR(document) }
-                    Divider()
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                HStack {
-                    Button("Undo", systemImage: "arrow.uturn.backward") { document.undo(); session.changed() }.disabled(!document.canUndo)
-                    Button("Redo", systemImage: "arrow.uturn.forward") { document.redo(); session.changed() }.disabled(!document.canRedo)
+                HStack(spacing: 8) {
+                    Button("Undo", systemImage: "arrow.uturn.backward") { document.undo(); session.changed() }
+                        .disabled(!document.canUndo)
+                        .frame(maxWidth: .infinity)
+                    Button("Redo", systemImage: "arrow.uturn.forward") { document.redo(); session.changed() }
+                        .disabled(!document.canRedo)
+                        .frame(maxWidth: .infinity)
                 }
                 Divider()
-                HStack {
+                Text("Export")
+                    .font(.headline)
+                HStack(spacing: 8) {
                     Button("Copy Smaller") { session.commitStyle(); session.actions.copySmaller(document) }
+                        .frame(maxWidth: .infinity)
                     Button("Save Smaller") { session.commitStyle(); session.actions.saveSmaller(document) }
+                        .frame(maxWidth: .infinity)
                 }
                 if let renderer = session.actions.dragRenderer {
-                    CaptureDragHandle(request: document.request(backgroundURL: session.library.url(for: document.edits.style.backgroundID)),
-                        renderer: renderer, onDragBegan: session.actions.dragBegan, onDragEnded: session.actions.dragEnded,
-                        onDragCanceled: session.actions.dragCanceled,
-                        onError: { error in session.status = error.localizedDescription; session.statusIsError = true })
-                        .frame(width: 170, height: 30)
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text("Drag to another app")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        CaptureDragHandle(request: document.request(backgroundURL: session.library.url(for: document.edits.style.backgroundID)),
+                            renderer: renderer, onDragBegan: session.actions.dragBegan, onDragEnded: session.actions.dragEnded,
+                            onDragCanceled: session.actions.dragCanceled,
+                            onError: { error in session.status = error.localizedDescription; session.statusIsError = true })
+                            .frame(maxWidth: .infinity, minHeight: 30)
+                    }
                 }
-                Text("Editable recovery keeps the original pixels behind crops and redactions. Exported PNGs contain only the flattened visible image.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Button("Close Editor", systemImage: "xmark") { session.commitStyle(); session.onCancel() }
-                Button("Discard Screenshot", systemImage: "trash", role: .destructive) { session.onDiscard(document) }
+                Divider()
+                HStack(spacing: 8) {
+                    Button("Close", systemImage: "xmark") { session.commitStyle(); session.onCancel() }
+                        .help("Close Editor")
+                        .frame(maxWidth: .infinity)
+                    Button("Discard", systemImage: "trash", role: .destructive) { session.onDiscard(document) }
+                        .help("Discard Screenshot")
+                        .accessibilityLabel("Discard Screenshot")
+                        .frame(maxWidth: .infinity)
+                }
             case nil: EmptyView()
             }
         }

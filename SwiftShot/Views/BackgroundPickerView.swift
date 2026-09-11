@@ -14,7 +14,9 @@ struct BackgroundPickerView: View {
     @State private var windowReference = BackgroundPickerWindowReference()
     @State private var isDropTargeted = false
     @State private var importError: String?
-    private let columns = [GridItem(.adaptive(minimum: 76, maximum: 110), spacing: 10)]
+    private let columns = [GridItem(.adaptive(minimum: 76, maximum: 110), spacing: 12)]
+    private let tileSize = CGSize(width: 86, height: 56)
+    private let tileRadius: CGFloat = 25
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -27,10 +29,11 @@ struct BackgroundPickerView: View {
                 }
             }
             ScrollView {
-                LazyVGrid(columns: gridColumns, spacing: 12) {
+                LazyVGrid(columns: gridColumns, spacing: 14) {
                     tile(id: "", name: "None") {
                         ZStack {
-                            Capsule().fill(.quaternary.opacity(0.5))
+                            RoundedRectangle(cornerRadius: tileRadius, style: .continuous)
+                                .fill(.quaternary.opacity(0.5))
                             Image(systemName: "nosign").font(.title2).foregroundStyle(.secondary)
                         }
                     }
@@ -126,7 +129,7 @@ struct BackgroundPickerView: View {
 
     private var gridColumns: [GridItem] {
         if let columnCount {
-            return Array(repeating: GridItem(.flexible(minimum: 0), spacing: 12), count: columnCount)
+            return Array(repeating: GridItem(.fixed(tileSize.width), spacing: 12), count: columnCount)
         }
         return columns
     }
@@ -148,17 +151,24 @@ struct BackgroundPickerView: View {
         Button { selection = id } label: {
             VStack(spacing: 5) {
                 content()
-                    .frame(height: 52)
-                    .frame(maxWidth: .infinity)
+                    .frame(width: tileSize.width, height: tileSize.height)
                     .clipped()
-                    .clipShape(Capsule())
-                    .overlay { Capsule().fill(Color.primary.opacity(selection == id ? 0.10 : 0)) }
+                    .clipShape(RoundedRectangle(cornerRadius: tileRadius, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: tileRadius, style: .continuous)
+                            .fill(Color.primary.opacity(selection == id ? 0.10 : 0))
+                    }
                     .overlay(alignment: .topTrailing) {
                         if selection == id {
                             Image(systemName: "checkmark.circle.fill")
                                 .symbolRenderingMode(.palette).foregroundStyle(.white, Color.accentColor)
                                 .padding(4)
                         }
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: tileRadius, style: .continuous)
+                            .strokeBorder(selection == id ? Color.accentColor.opacity(0.9) : .clear,
+                                          lineWidth: selection == id ? 2 : 0)
                     }
                 Text(name)
                     .font(.caption)
@@ -168,6 +178,7 @@ struct BackgroundPickerView: View {
             }
             .contentShape(Rectangle())
         }
+        .frame(width: tileSize.width)
         .buttonStyle(.plain)
         .help(name)
         .accessibilityLabel(name)
