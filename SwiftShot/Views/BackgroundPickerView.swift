@@ -9,6 +9,7 @@ struct BackgroundPickerView: View {
     var showsImportButton = true
     var showsLibraryActions = true
     var gridHeight: CGFloat?
+    var columnCount: Int?
     @State private var importPanel: NSOpenPanel?
     @State private var windowReference = BackgroundPickerWindowReference()
     @State private var isDropTargeted = false
@@ -26,7 +27,7 @@ struct BackgroundPickerView: View {
                 }
             }
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 12) {
+                LazyVGrid(columns: gridColumns, spacing: 12) {
                     tile(id: "", name: "None") {
                         ZStack {
                             Capsule().fill(.quaternary.opacity(0.5))
@@ -68,15 +69,13 @@ struct BackgroundPickerView: View {
                     Button { remove(selection) } label: {
                         Label("Remove", systemImage: "trash")
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    .buttonStyle(CaptureButtonStyle())
                     .disabled(selection.isEmpty || library.isImporting)
                     .help("Remove the selected background; bundled images can be restored")
                     Button { perform { try library.undoRemoval() } } label: {
                         Label("Undo", systemImage: "arrow.uturn.backward")
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    .buttonStyle(CaptureButtonStyle())
                     .disabled(!library.canUndoRemoval || library.isImporting)
                     Spacer(minLength: 0)
                     Menu {
@@ -125,14 +124,20 @@ struct BackgroundPickerView: View {
         }
     }
 
+    private var gridColumns: [GridItem] {
+        if let columnCount {
+            return Array(repeating: GridItem(.flexible(minimum: 0), spacing: 12), count: columnCount)
+        }
+        return columns
+    }
+
     private var importButton: some View {
         HStack(spacing: 8) {
             if library.isImporting { ProgressView().controlSize(.small) }
             Button { beginImport() } label: {
                 Label("Add", systemImage: "plus")
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+            .buttonStyle(CaptureButtonStyle())
             .help("Add background images")
             .disabled(library.isImporting)
             .accessibilityLabel("Add Backgrounds")

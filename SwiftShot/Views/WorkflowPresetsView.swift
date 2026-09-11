@@ -7,33 +7,13 @@ struct WorkflowPresetsView: View {
 
     var body: some View {
         Form {
-            Section {
-                HStack {
-                    Text("Workflow")
-                    Spacer()
-                    Picker("Workflow", selection: $workflow) {
-                        ForEach(CaptureWorkflow.allCases, id: \.self) { value in
-                            Text(value.label).tag(value)
-                        }
+            Section("Applies to") {
+                Picker("Applies to", selection: $workflow) {
+                    ForEach(CaptureWorkflow.allCases, id: \.self) { value in
+                        Text(value.label).tag(value)
                     }
-                    .labelsHidden()
-                    .fixedSize()
-                    Menu {
-                        Button("Use Raw Pixels", systemImage: "circle.slash") {
-                            updateStyle(CaptureStyle())
-                        }
-                        if let document = appState.lastDocument {
-                            Button("Use Last Capture's Style", systemImage: "clock.arrow.circlepath") {
-                                updateStyle(document.edits.style)
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                    .menuStyle(.borderlessButton)
-                    .buttonStyle(CaptureButtonStyle(compact: true))
-                    .accessibilityLabel("Style Actions")
                 }
+                .labelsHidden()
             }
             Section("Background") {
                 BackgroundPickerView(library: appState.backgrounds, selection: Binding(get: {
@@ -42,7 +22,7 @@ struct WorkflowPresetsView: View {
                     var style = appState.appSettings.style(for: workflow)
                     style.backgroundID = id; updateStyle(style)
                 }), showsHeader: false, showsImportButton: true,
-                   showsLibraryActions: false, gridHeight: 132)
+                   showsLibraryActions: false, gridHeight: 132, columnCount: 6)
             }
             Section("Style") {
                 slider("Padding", key: \.padding, range: 0...240)
@@ -51,30 +31,39 @@ struct WorkflowPresetsView: View {
             }
             Section {
                 HStack {
-                    TextField("Name this style", text: $presetName)
+                    TextField("Preset name", text: $presetName)
                         .textFieldStyle(.roundedBorder)
                         .onSubmit(savePreset)
-                    Button("Save", systemImage: "plus") { savePreset() }
+                    Button("Save Preset", systemImage: "plus") { savePreset() }
                         .buttonStyle(CaptureButtonStyle(prominent: true))
                         .disabled(!canSavePreset)
                 }
-                ForEach(appState.appSettings.presets) { preset in
-                    HStack {
-                        Image(systemName: "wand.and.stars")
-                            .foregroundStyle(.secondary)
-                        Text(preset.name).lineLimit(1)
-                        Spacer()
-                        Button("Use") { updateStyle(preset.style) }
-                            .buttonStyle(CaptureButtonStyle())
-                        Button(role: .destructive) {
-                            appState.appSettings.presets.removeAll { $0.id == preset.id }
-                            appState.saveSettings()
-                        } label: {
-                            Image(systemName: "trash")
+                if appState.appSettings.presets.isEmpty {
+                    Text("Save the current background and style controls for reuse.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack(spacing: 8) {
+                        ForEach(appState.appSettings.presets) { preset in
+                            HStack(spacing: 10) {
+                                Text(preset.name).lineLimit(1)
+                                Spacer(minLength: 8)
+                                Button("Use") { updateStyle(preset.style) }
+                                    .buttonStyle(CaptureButtonStyle())
+                                Button(role: .destructive) {
+                                    appState.appSettings.presets.removeAll { $0.id == preset.id }
+                                    appState.saveSettings()
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(CaptureButtonStyle(compact: true))
+                                .help("Delete \(preset.name)")
+                                .accessibilityLabel("Delete \(preset.name)")
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                         }
-                        .buttonStyle(CaptureButtonStyle(compact: true))
-                        .help("Delete \(preset.name)")
-                        .accessibilityLabel("Delete \(preset.name)")
                     }
                 }
             } header: {
