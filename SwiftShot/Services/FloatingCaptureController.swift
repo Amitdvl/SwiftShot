@@ -453,11 +453,19 @@ final class FloatingCaptureController {
         let cascade = CGFloat(cascadeIndex % 6) * 26
         let origin = CGPoint(x: max(visible.minX + 12, visible.maxX - size.width - 24 - cascade),
                              y: max(visible.minY + 12, visible.minY + 24 + cascade))
-        var style: NSWindow.StyleMask = [.titled, .closable, .nonactivatingPanel, .utilityWindow]
+        // The screenshot is the panel. A titlebar or opaque window backing
+        // makes a pin look like a second editor and can become visible in the
+        // next capture. Movement is handled by the window background instead.
+        var style: NSWindow.StyleMask = [.borderless, .nonactivatingPanel, .utilityWindow]
         if kind == .pin { style.insert(.resizable) }
         let panel = FloatingCapturePanel(contentRect: CGRect(origin: origin, size: size), styleMask: style, backing: .buffered, defer: false)
         panel.title = kind == .recent ? "Recent Capture" : "SwiftShot Pin"
         panel.isFloatingPanel = true
+        panel.isMovableByWindowBackground = true
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.titleVisibility = .hidden
         panel.level = .floating
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
@@ -489,13 +497,17 @@ struct FloatingCaptureContent: View {
     let onSave: () -> Void
     let onPin: () -> Void
     let onClose: () -> Void
+    @State private var isHovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack {
             FloatingEditedImageView(image: image)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(8)
+                .blur(radius: isHovering ? 8 : 0)
+                .scaleEffect(isHovering ? 1.012 : 1)
                 .onDrag { payload.itemProvider() }
-                .help("Drag this edited image into an app. Move the pin by its title bar.")
+                .help("Drag this edited image into an app. Drag the image to move the pin.")
                 .accessibilityLabel("Edited screenshot. Drag to share image.")
                 .contextMenu {
                     Button("Copy", systemImage: "document.on.document", action: onCopy)
@@ -503,37 +515,90 @@ struct FloatingCaptureContent: View {
                     Button("Edit", systemImage: "pencil.tip", action: onEdit)
                     if isRecent { Button("Pin to Screen", systemImage: "pin", action: onPin) }
                 }
-            HStack(spacing: 5) {
-                Button("Copy", action: onCopy)
-                    .buttonStyle(CaptureButtonStyle(prominent: true, compact: true))
-                    .keyboardShortcut("c", modifiers: .command)
-                    .help("Copy (⌘C)")
-                Button(action: onSave) { Image(systemName: "square.and.arrow.down") }
-                    .buttonStyle(CaptureButtonStyle(compact: true))
-                    .accessibilityLabel("Save")
-                    .help("Save (⌘S)")
-                    .keyboardShortcut("s", modifiers: .command)
-                Button(action: onEdit) { Image(systemName: "pencil.tip") }
-                    .buttonStyle(CaptureButtonStyle(compact: true))
-                    .accessibilityLabel("Edit capture").help("Edit (⌘E)")
-                    .keyboardShortcut("e", modifiers: .command)
-                Spacer(minLength: 0)
-                Button(action: onClose) { Image(systemName: "xmark") }
-                    .buttonStyle(CaptureButtonStyle(compact: true))
-                    .accessibilityLabel(isRecent ? "Dismiss recent capture" : "Close pin")
-                    .keyboardShortcut(.cancelAction)
-            }
-            .buttonStyle(CaptureButtonStyle())
-            .padding(.horizontal, 7).padding(.vertical, 5)
-            // The control rail is a translucent line over the bitmap. It does
-            // not reserve a second row below the image or enlarge the panel.
-            .frame(maxWidth: .infinity)
-            .background(.regularMaterial)
-            .overlay(alignment: .top) { Rectangle().fill(.primary.opacity(0.12)).frame(height: 1) }
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .padding(6)
-            .frame(height: 44)
+            // Keep the buttons mounted even while resting. Their hidden state
+            // preserves the panel's ⌘C/⌘S/⌘E/Escape responder path without
+            // leaving invisible hit targets over the screenshot.
+            FloatingCornerButton("Copy", icon: "document.on.document", shortcut: KeyboardShortcut("c", modifiers: .command), action: onCopy)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .opacity(isHovering ? 1 : 0)
+                .allowsHitTesting(isHovering)
+                .accessibilityHidden(!isHovering)
+            FloatingCornerButton("Save", icon: "square.and.arrow.down", shortcut: KeyboardShortcut("s", modifiers: .command), action: onSave)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .opacity(isHovering ? 1 : 0)
+                .allowsHitTesting(isHovering)
+                .accessibilityHidden(!isHovering)
+            FloatingCornerButton("Edit capture", icon: "pencil.tip", shortcut: KeyboardShortcut("e", modifiers: .command), action: onEdit)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .opacity(isHovering ? 1 : 0)
+                .allowsHitTesting(isHovering)
+                .accessibilityHidden(!isHovering)
+            FloatingCornerButton(isRecent ? "Dismiss recent capture" : "Close pin", icon: "xmark", shortcut: .cancelAction, action: onClose)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .opacity(isHovering ? 1 : 0)
+                .allowsHitTesting(isHovering)
+                .accessibilityHidden(!isHovering)
         }
+        .contentShape(Rectangle())
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .onHover { isHovering = $0 }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: isHovering)
+    }
+}
+
+/// A pin has no permanent toolbar. These controls sit inside the image so the
+/// resting state is just the captured pixels and the pointer remains the cue
+/// that actions are available.
+private struct FloatingCornerButton: View {
+    let label: String
+    let icon: String
+    let shortcut: KeyboardShortcut?
+    let action: () -> Void
+
+    init(_ label: String, icon: String, shortcut: KeyboardShortcut? = nil, action: @escaping () -> Void) {
+        self.label = label
+        self.icon = icon
+        self.shortcut = shortcut
+        self.action = action
+    }
+
+    var body: some View {
+        Group {
+            if let shortcut {
+                button.keyboardShortcut(shortcut)
+            } else {
+                button
+            }
+        }
+        .padding(10)
+    }
+
+    private var button: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: 42, height: 42)
+        }
+        .buttonStyle(FloatingCornerButtonStyle())
+        .accessibilityLabel(label)
+        .help(label)
+    }
+}
+
+private struct FloatingCornerButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(.white)
+            .background(.black.opacity(configuration.isPressed ? 0.72 : 0.58), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(.white.opacity(0.2), lineWidth: 0.5)
+            }
+            .shadow(color: .black.opacity(0.22), radius: 7, y: 3)
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 

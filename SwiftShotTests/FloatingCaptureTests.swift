@@ -9,6 +9,18 @@ import SwiftUI
 private typealias ImageRenderer = SwiftShot.ImageRenderer
 
 final class FloatingCaptureTests: XCTestCase {
+    @MainActor func testFloatingPanelIsFramelessAndMovableByItsImageBackground() {
+        let panel = FloatingCaptureController.makePanel(kind: .pin, image: source(),
+            visible: CGRect(x: 0, y: 0, width: 1470, height: 956))
+        defer { panel.close() }
+
+        XCTAssertTrue(panel.styleMask.contains(.borderless))
+        XCTAssertFalse(panel.styleMask.contains(.titled))
+        XCTAssertTrue(panel.isMovableByWindowBackground)
+        XCTAssertFalse(panel.isOpaque)
+        XCTAssertEqual(panel.titleVisibility, .hidden)
+    }
+
     @MainActor func testCopyFromRecentThumbnailKeepsOriginalRecentPresentation() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("SwiftShotRecentHandoff-\(UUID())")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -60,10 +72,10 @@ final class FloatingCaptureTests: XCTestCase {
         XCTAssertLessThanOrEqual(panel.contentLayoutRect.height, intendedSize.height + 1)
         XCTAssertLessThanOrEqual(hosting.fittingSize.width, intendedSize.width + 1,
             "The image imposed a native-pixel minimum that pushes Close offscreen")
-        try assertImageAndControlRowFit(hosting)
+        try assertImageAndCornerControlsFit(hosting)
     }
 
-    @MainActor func testPortraitRecentHostingCannotPushControlRowOutsideInitialSize() async throws {
+    @MainActor func testPortraitRecentHostingCannotPushCornerControlsOutsideInitialSize() async throws {
         let image = source(width: 312, height: 1412)
         let panel = FloatingCaptureController.makePanel(kind: .recent, image: image,
             visible: CGRect(x: 0, y: 0, width: 1470, height: 956))
@@ -76,7 +88,7 @@ final class FloatingCaptureTests: XCTestCase {
         XCTAssertLessThanOrEqual(panel.contentLayoutRect.height, intendedSize.height + 1,
             "Native portrait height expanded the recent capture beyond its control layout")
         XCTAssertLessThanOrEqual(hosting.fittingSize.height, intendedSize.height + 1)
-        try assertImageAndControlRowFit(hosting)
+        try assertImageAndCornerControlsFit(hosting)
     }
 
     @MainActor func testPinCanResizeDownToControlMinimumWithoutChangingNativeImage() async throws {
@@ -91,7 +103,7 @@ final class FloatingCaptureTests: XCTestCase {
             XCTAssertLessThanOrEqual(panel.contentLayoutRect.width, size.width + 1)
             XCTAssertLessThanOrEqual(panel.contentLayoutRect.height, size.height + 1)
             XCTAssertLessThanOrEqual(hosting.fittingSize.width, size.width + 1)
-            try assertImageAndControlRowFit(hosting)
+            try assertImageAndCornerControlsFit(hosting)
         }
         let imageView = try XCTUnwrap(imageView(in: hosting))
         XCTAssertEqual(imageView.image?.size, NSSize(width: 1412, height: 312), "UI fitting must not resample export pixels")
@@ -142,14 +154,14 @@ final class FloatingCaptureTests: XCTestCase {
         return nil
     }
 
-    @MainActor private func assertImageAndControlRowFit(_ hosting: NSView, file: StaticString = #filePath, line: UInt = #line) throws {
+    @MainActor private func assertImageAndCornerControlsFit(_ hosting: NSView, file: StaticString = #filePath, line: UInt = #line) throws {
         let image = try XCTUnwrap(imageView(in: hosting), file: file, line: line)
         let frame = image.convert(image.bounds, to: hosting)
         XCTAssertGreaterThan(frame.width, 0, file: file, line: line)
         XCTAssertGreaterThan(frame.height, 0, file: file, line: line)
         XCTAssertGreaterThanOrEqual(frame.minX, -1, file: file, line: line)
         XCTAssertLessThanOrEqual(frame.maxX, hosting.bounds.maxX + 1, file: file, line: line)
-        // The control rail overlays the image, so it must not impose an extra
+        // Corner controls overlay the image, so they must not impose an extra
         // row or push the image outside the native panel bounds.
         XCTAssertLessThanOrEqual(frame.maxY, hosting.bounds.maxY + 1, file: file, line: line)
         XCTAssertLessThanOrEqual(hosting.fittingSize.width, hosting.bounds.width + 1, file: file, line: line)
