@@ -182,8 +182,10 @@ final class AppState {
         guard sessionID == token else { return false }
         overlay.dismiss()
         floatingCaptures.setCaptureHidden(true)
-        preferencesWindow?.orderOut(nil)
-        historyWindow?.window?.orderOut(nil)
+        // Persistent SwiftShot windows stay visible so display and region
+        // captures can document the app itself. Capture-owned overlays and
+        // floating results are hidden above; those transient surfaces should
+        // never be part of the source pixels.
         NotificationService.dismiss()
         CaptureLatencyTrace.shared.mark(.captureWindowsHidden, for: performanceRun)
         statusMessage = "Freezing screen…"
@@ -798,8 +800,9 @@ final class AppState {
         guard token == sessionID else { return false }
         overlay.dismiss()
         floatingCaptures.setCaptureHidden(true)
-        preferencesWindow?.orderOut(nil)
-        historyWindow?.window?.orderOut(nil)
+        // Keep visible Settings/History windows in the source frame. The
+        // capture overlay, floating results, and notifications are transient
+        // capture chrome and are hidden before acquisition.
         NotificationService.dismiss()
         do {
             let task = Task { try await captureService.captureRegion(displayID: region.displayID, rect: region.rect) }

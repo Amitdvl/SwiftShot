@@ -63,19 +63,26 @@ final class CaptureDisplayMetadataCache<Display, Application> {
     typealias Resolved = (displays: [Display], excludedApplications: [Application])
     private let ownProcessID: Int32
     private let processID: (Application) -> Int32
-    private var cached: (layout: [CaptureDisplayLayout], metadata: Resolved)?
+    private var cached: (layout: [CaptureDisplayLayout], includeOwnApplication: Bool, metadata: Resolved)?
 
     init(ownProcessID: Int32, processID: @escaping (Application) -> Int32) {
         self.ownProcessID = ownProcessID
         self.processID = processID
     }
 
-    func metadata(for layout: [CaptureDisplayLayout], query: @MainActor (Bool) async throws -> Snapshot) async throws -> Resolved {
+    func metadata(for layout: [CaptureDisplayLayout], includeOwnApplication: Bool = false,
+                  query: @MainActor (Bool) async throws -> Snapshot) async throws -> Resolved {
         try Task.checkCancellation()
-        if let cached, CaptureAcquisitionPolicy.layoutMatches(cached.layout, layout) { return cached.metadata }
+        if let cached, cached.includeOwnApplication == includeOwnApplication,
+           CaptureAcquisitionPolicy.layoutMatches(cached.layout, layout) { return cached.metadata }
         cached = nil
         var snapshot = try await query(true)
         try Task.checkCancellation()
+        if includeOwnApplication {
+            let result: Resolved = (snapshot.displays, [])
+            cached = (layout, true, result)
+            return result
+        }
         var ownApplication = snapshot.applications.first { processID($0) == ownProcessID }
         if ownApplication == nil {
             // The last SwiftShot panel may have just left the screen. Refresh
@@ -88,7 +95,7 @@ final class CaptureDisplayMetadataCache<Display, Application> {
             throw CaptureError.failed("SwiftShot could not safely exclude its own interface from this display capture. Reopen SwiftShot and try again, or use Window capture to select a specific window.")
         }
         let result: Resolved = (snapshot.displays, [ownApplication])
-        cached = (layout, result)
+        cached = (layout, false, result)
         return result
     }
 

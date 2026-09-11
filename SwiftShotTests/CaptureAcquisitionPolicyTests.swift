@@ -44,6 +44,32 @@ final class CaptureAcquisitionPolicyTests: XCTestCase {
         XCTAssertEqual(queries, [true])
     }
 
+    func testDisplayMetadataCanIncludeCurrentProcessWithoutRequiringItsApplicationRecord() async throws {
+        let cache = CaptureDisplayMetadataCache<Int, MetadataTestApplication>(ownProcessID: 42, processID: { $0.pid })
+        var queries: [Bool] = []
+        let result = try await cache.metadata(for: displays, includeOwnApplication: true) { onScreenOnly in
+            queries.append(onScreenOnly)
+            return (displays: [7], applications: [])
+        }
+        XCTAssertTrue(result.excludedApplications.isEmpty)
+        XCTAssertEqual(result.displays, [7])
+        XCTAssertEqual(queries, [true])
+    }
+
+    func testDisplayMetadataCacheSeparatesOwnApplicationInclusionModes() async throws {
+        let cache = CaptureDisplayMetadataCache<Int, MetadataTestApplication>(ownProcessID: 42, processID: { $0.pid })
+        var queries = 0
+        let query: @MainActor (Bool) async throws -> (displays: [Int], applications: [MetadataTestApplication]) = { _ in
+            queries += 1
+            return (displays: [queries], applications: [MetadataTestApplication(pid: 42, bundleID: "same.bundle")])
+        }
+        let included = try await cache.metadata(for: displays, includeOwnApplication: true, query: query)
+        XCTAssertTrue(included.excludedApplications.isEmpty)
+        let excluded = try await cache.metadata(for: displays, includeOwnApplication: false, query: query)
+        XCTAssertEqual(excluded.excludedApplications.map(\.pid), [42])
+        XCTAssertEqual(queries, 2)
+    }
+
     func testMissingOwnApplicationUsesOneOffscreenMetadataRefresh() async throws {
         let cache = CaptureDisplayMetadataCache<Int, MetadataTestApplication>(ownProcessID: 42, processID: { $0.pid })
         var queries: [Bool] = []

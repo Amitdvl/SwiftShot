@@ -21,6 +21,7 @@ Borrow the hierarchy: keep the image dominant, make completing a capture immedia
 - Hover/press feedback changes color over 80–100 ms, with no scaling or displacement. Reduce Motion removes those transitions. Inspector changes do not animate the toolbar's placement; reserve a stable attachment area and scroll overflowing inspector content.
 - Copy and Save retain labels and their shortcuts. Annotation, solid redaction and crop remain directly accessible. Styling moves under More; advanced actions retain their implementations.
 - Screenshot pixels, crop/selection geometry, annotation geometry and the renderer never use the chrome modifier. Existing explicitly chosen export styling is preserved. UI rounding never becomes a raw-export mask.
+- Display and region captures include visible SwiftShot windows and panels. The capture filter no longer removes the app's own process, while the existing explicit window identity checks remain unchanged.
 
 ## Removal ledger
 

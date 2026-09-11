@@ -62,11 +62,11 @@ final class ScreenCaptureService: ScreenCaptureProviding {
                 return surfaces
             }
 
-            // macOS 14 requires display/application metadata to build an exclusion
+            // macOS 14 requires display/application metadata to build the display
             // filter. Reuse it while layout is unchanged; never cache pixels.
             // No CG window enumeration, content.windows traversal, or currentProcess
             // query occurs on Region/OCR/Fullscreen paths.
-            let metadata = try await displayMetadata(for: layout)
+            let metadata = try await displayMetadata(for: layout, includeOwnApplication: true)
             let jobs = try targets.map { target -> DisplayCaptureJob in
                 guard let display = metadata.displays.first(where: { $0.displayID == target.id }) else {
                     throw CaptureError.failed("A display disconnected. Try capturing again.")
@@ -236,7 +236,7 @@ final class ScreenCaptureService: ScreenCaptureProviding {
             throw CaptureError.failed("The scrolling region is outside the current display. Select it again.")
         }
         do {
-            let metadata = try await displayMetadata(for: layout)
+            let metadata = try await displayMetadata(for: layout, includeOwnApplication: true)
             guard let display = metadata.displays.first(where: { $0.displayID == displayID }) else {
                 throw CaptureError.failed("The scrolling display disconnected. Select it again.")
             }
@@ -257,20 +257,21 @@ final class ScreenCaptureService: ScreenCaptureProviding {
         }
     }
 
-    private func displayMetadata(for layout: [CaptureDisplayLayout]) async throws -> CaptureDisplayMetadataCache<SCDisplay, SCRunningApplication>.Resolved {
+    private func displayMetadata(for layout: [CaptureDisplayLayout], includeOwnApplication: Bool) async throws -> CaptureDisplayMetadataCache<SCDisplay, SCRunningApplication>.Resolved {
         do {
-            let metadata = try await displayCache.metadata(for: layout) { onScreenOnly in
+            let metadata = try await displayCache.metadata(for: layout, includeOwnApplication: includeOwnApplication) { onScreenOnly in
                 let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: onScreenOnly)
                 try self.validateLayout(layout)
-                // Exact process identity excludes SwiftShot UI, including panels
-                // still in compositor transitions. Never inspect content.windows.
+                // Display metadata is enough for the normal capture paths. The
+                // caller chooses whether this filter includes SwiftShot's own UI;
+                // never inspect content.windows here.
                 return (content.displays, content.applications)
             }
-            logger.debug("Own-app exclusion metadata resolved: \(true, privacy: .public)")
+            logger.debug("Display capture metadata resolved; own app included: \(includeOwnApplication, privacy: .public)")
             return metadata
         } catch {
             displayCache.invalidate()
-            logger.error("Own-app exclusion metadata resolved: \(false, privacy: .public)")
+            logger.error("Display capture metadata failed; own app included: \(includeOwnApplication, privacy: .public)")
             throw error
         }
     }
