@@ -636,4 +636,9 @@ private final class FloatingViewportImageView: NSImageView {
     override var intrinsicContentSize: NSSize {
         NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
     }
+
+    // Borderless panels have no titlebar to begin a move. Let a drag that
+    // starts on the screenshot use AppKit's native window movement path while
+    // SwiftUI keeps ownership of corner-button clicks and image dragging.
+    override var mouseDownCanMoveWindow: Bool { true }
 }
