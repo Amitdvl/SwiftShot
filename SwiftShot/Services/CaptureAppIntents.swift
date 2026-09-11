@@ -45,7 +45,7 @@ struct StartSwiftShotCaptureIntent: AppIntent {
 
 struct RecaptureLastRegionIntent: AppIntent {
     static let title: LocalizedStringResource = "Recapture Last Region"
-    static let description = IntentDescription("Capture the previous region on the same display and resolution. Quick Copy waits for the clipboard. Private region coordinates are not restored after relaunch.")
+    static let description = IntentDescription("Capture the previous region on the same display and resolution. Quick Copy copies to the clipboard and stays in memory until you save it.")
     static let openAppWhenRun = true
     @Parameter(title: "Quick Copy", default: true) var quickCopy: Bool
 
