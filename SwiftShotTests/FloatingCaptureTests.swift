@@ -49,7 +49,9 @@ final class FloatingCaptureTests: XCTestCase {
             visible: CGRect(x: 0, y: 0, width: 1470, height: 956))
         defer { panel.close() }
         let intendedSize = panel.contentLayoutRect.size
-        XCTAssertLessThanOrEqual(intendedSize.width, 720)
+        XCTAssertLessThanOrEqual(intendedSize.width, 440,
+            "Pins should stay compact enough to leave the desktop usable")
+        XCTAssertLessThanOrEqual(intendedSize.height, 300)
         let hosting = try installTestContent(image: image, in: panel, isRecent: false)
         try await settleLayout(hosting)
         XCTAssertFalse(panel.isVisible, "This regression must never show a native window")
@@ -98,6 +100,29 @@ final class FloatingCaptureTests: XCTestCase {
         XCTAssertFalse(panel.isVisible)
     }
 
+    @MainActor func testPinRequestedWhileEditorHidesRecentChromeBecomesVisible() async throws {
+        let image = source(width: 80, height: 40)
+        let controller = FloatingCaptureController(renderer: RecentHandoffRenderer(image: image))
+        defer { controller.closeAll() }
+        controller.setCaptureHidden(true)
+
+        let document = CaptureDocument(image: image)
+        try await controller.pin(document: document, backgroundURL: nil, onCopy: { _ in }, onEdit: { _ in }, onSave: { _ in })
+        await Task.yield()
+
+        XCTAssertEqual(controller.pinCount, 1)
+        XCTAssertTrue(NSApp.windows.contains {
+            guard let panel = $0 as? FloatingCapturePanel else { return false }
+            return panel.title == "SwiftShot Pin" && panel.isVisible
+        }, "An explicit Pin action must show the pin even while the editor hides recent chrome")
+
+        controller.setCaptureHidden(true)
+        XCTAssertTrue(NSApp.windows.contains {
+            guard let panel = $0 as? FloatingCapturePanel else { return false }
+            return panel.title == "SwiftShot Pin" && panel.isVisible
+        }, "Capture hiding must leave user pins available as source content")
+    }
+
     @MainActor private func installTestContent(image: CGImage, in panel: FloatingCapturePanel, isRecent: Bool) throws -> NSView {
         let payload = FloatingCapturePayload(image: image, renderer: ImageRenderer(cacheByteLimit: 0, cacheEntryLimit: 0))
         FloatingCaptureController.installContent(FloatingCaptureContent(image: image, payload: payload, isRecent: isRecent,
@@ -124,8 +149,9 @@ final class FloatingCaptureTests: XCTestCase {
         XCTAssertGreaterThan(frame.height, 0, file: file, line: line)
         XCTAssertGreaterThanOrEqual(frame.minX, -1, file: file, line: line)
         XCTAssertLessThanOrEqual(frame.maxX, hosting.bounds.maxX + 1, file: file, line: line)
-        // The image must leave the real HStack's full 44-point control row intact.
-        XCTAssertLessThanOrEqual(frame.height, hosting.bounds.height - 44 + 1, file: file, line: line)
+        // The control rail overlays the image, so it must not impose an extra
+        // row or push the image outside the native panel bounds.
+        XCTAssertLessThanOrEqual(frame.maxY, hosting.bounds.maxY + 1, file: file, line: line)
         XCTAssertLessThanOrEqual(hosting.fittingSize.width, hosting.bounds.width + 1, file: file, line: line)
     }
 

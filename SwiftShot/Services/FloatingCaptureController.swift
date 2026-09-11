@@ -359,7 +359,10 @@ final class FloatingCaptureController {
             pending.removeValue(forKey: id)
             pendingKinds.removeValue(forKey: id)
             if kind == .recent { recentID = id }
-            if !captureHidden { panel.orderFrontRegardless() } // Do not steal focus from the paste destination.
+            // A pin is an explicit user action and must become visible even if
+            // the editor is currently hiding recent capture chrome. Recent
+            // thumbnails still stay quiet while captureHidden is set.
+            if kind == .pin || !captureHidden { panel.orderFrontRegardless() }
         } catch {
             pending.removeValue(forKey: id)
             pendingKinds.removeValue(forKey: id)
@@ -375,16 +378,18 @@ final class FloatingCaptureController {
         recentID = nil
     }
 
-    /// Hide only panels owned here while the next screenshot is frozen. Their
-    /// payloads and user-created pins remain intact, without window enumeration.
-    /// A user-created pin is source content and must stay visible so Window and
-    /// Region capture can capture it. Only the optional recent thumbnail is
-    /// transient capture chrome.
+    /// Hide only transient panels while the next screenshot is frozen. User
+    /// pins remain source content so Window and Region capture can capture them.
+    /// When the editor closes, restore every panel, including a pin that was
+    /// created while the editor was still active.
     func setCaptureHidden(_ hidden: Bool) {
         captureHidden = hidden
-        for entry in entries.values where entry.kind == .recent {
-            if hidden { entry.panel.orderOut(nil) }
-            else { entry.panel.orderFrontRegardless() }
+        for entry in entries.values {
+            if hidden {
+                if entry.kind == .recent { entry.panel.orderOut(nil) }
+            } else {
+                entry.panel.orderFrontRegardless()
+            }
         }
     }
 
@@ -439,13 +444,12 @@ final class FloatingCaptureController {
     }
 
     static func makePanel(kind: FloatingCaptureBudget.Kind, image: CGImage, visible: CGRect, cascadeIndex: Int = 0) -> FloatingCapturePanel {
-        let controls: CGFloat = 44
         // Pins are intentionally compact; the image remains the focus and can
         // still be resized when a larger working surface is useful.
-        let maximum = kind == .recent ? CGSize(width: 280, height: 200) : CGSize(width: 560, height: 420)
+        let maximum = kind == .recent ? CGSize(width: 280, height: 200) : CGSize(width: 420, height: 280)
         let scale = min(maximum.width / CGFloat(image.width), maximum.height / CGFloat(image.height),
-                        (visible.width - 40) / CGFloat(image.width), (visible.height - controls - 60) / CGFloat(image.height))
-        let size = CGSize(width: max(220, CGFloat(image.width) * scale), height: max(100, CGFloat(image.height) * scale) + controls)
+                        (visible.width - 40) / CGFloat(image.width), (visible.height - 60) / CGFloat(image.height))
+        let size = CGSize(width: max(220, CGFloat(image.width) * scale), height: max(120, CGFloat(image.height) * scale))
         let cascade = CGFloat(cascadeIndex % 6) * 26
         let origin = CGPoint(x: max(visible.minX + 12, visible.maxX - size.width - 24 - cascade),
                              y: max(visible.minY + 12, visible.minY + 24 + cascade))
@@ -459,7 +463,7 @@ final class FloatingCaptureController {
         panel.isReleasedWhenClosed = false
         panel.isRestorable = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.contentMinSize = NSSize(width: 220, height: 144)
+        panel.contentMinSize = NSSize(width: 220, height: 120)
         return panel
     }
 }
@@ -490,9 +494,6 @@ struct FloatingCaptureContent: View {
             FloatingEditedImageView(image: image)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(8)
-                // Reserve the compact control strip while keeping it visually
-                // over the image, so pins do not grow a second toolbar row.
-                .padding(.bottom, 44)
                 .onDrag { payload.itemProvider() }
                 .help("Drag this edited image into an app. Move the pin by its title bar.")
                 .accessibilityLabel("Edited screenshot. Drag to share image.")
@@ -523,9 +524,14 @@ struct FloatingCaptureContent: View {
                     .keyboardShortcut(.cancelAction)
             }
             .buttonStyle(CaptureButtonStyle())
-            .padding(.horizontal, 5).padding(.vertical, 5)
-            .captureChrome(capsule: true)
-            .padding(.horizontal, 5)
+            .padding(.horizontal, 7).padding(.vertical, 5)
+            // The control rail is a translucent line over the bitmap. It does
+            // not reserve a second row below the image or enlarge the panel.
+            .frame(maxWidth: .infinity)
+            .background(.regularMaterial)
+            .overlay(alignment: .top) { Rectangle().fill(.primary.opacity(0.12)).frame(height: 1) }
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(6)
             .frame(height: 44)
         }
     }
