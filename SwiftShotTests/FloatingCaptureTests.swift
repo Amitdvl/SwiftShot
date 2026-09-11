@@ -23,6 +23,7 @@ final class FloatingCaptureTests: XCTestCase {
             backgrounds: BackgroundLibrary(rootURL: root.appendingPathComponent("backgrounds")), clipboard: clipboard,
             presentsUI: true, renderer: renderer, overlay: RecentHandoffPresenter(), diagnostics: nil,
             floatingCaptures: floating)
+        app.appSettings.showRecentThumbnail = true
         let document = CaptureDocument(image: image)
         document.change { $0.annotations = [CaptureAnnotation(kind: .arrow, start: .zero, end: CGPoint(x: 20, y: 20))] }
 
