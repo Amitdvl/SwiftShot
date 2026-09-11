@@ -41,6 +41,8 @@ struct CaptureHistoryView: View {
             Divider()
             footer
         }
+        .buttonStyle(CaptureButtonStyle())
+        .buttonBorderShape(.capsule)
         .task(id: model.query) {
             do { try await Task.sleep(for: .milliseconds(model.query.isEmpty ? 0 : 180)) }
             catch { return }
@@ -76,6 +78,8 @@ struct CaptureHistoryView: View {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
             TextField("Search recognized text", text: $model.query)
                 .textFieldStyle(.plain)
+                .padding(.horizontal, 14).padding(.vertical, 9)
+                .background(.quaternary, in: Capsule())
                 .accessibilityLabel("Search local capture text")
             if model.isLoading { ProgressView().controlSize(.small) }
             Button { Task { await model.reload(refreshStorage: true) } } label: { Image(systemName: "arrow.clockwise") }
@@ -107,7 +111,7 @@ struct CaptureHistoryView: View {
                     }
                     HStack {
                         Button("Open Editor", systemImage: "pencil.tip.crop.circle") { model.open(id: entry.id) }
-                            .buttonStyle(.borderedProminent).disabled(!entry.isRecoverable)
+                            .buttonStyle(CaptureButtonStyle(prominent: true)).disabled(!entry.isRecoverable)
                         Button("Pin to Screen", systemImage: "pin") { model.pinToScreen(id: entry.id) }
                             .disabled(!entry.isRecoverable)
                     }

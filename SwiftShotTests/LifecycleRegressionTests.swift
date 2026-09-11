@@ -269,10 +269,10 @@ private final class LifecycleFloating: FloatingCapturePresenting {
     var gate: LifecycleAsyncGate?
     var onEdit: ((CaptureDocument) -> Void)?
     func showRecent(document: CaptureDocument, backgroundURL: URL?, renderedImage: CGImage?,
-                    onEdit: @escaping (CaptureDocument) -> Void, onSave: @escaping (CaptureDocument) -> Void,
+                    title: String, onCopy: @escaping (CaptureDocument) -> Void, onEdit: @escaping (CaptureDocument) -> Void, onSave: @escaping (CaptureDocument) -> Void,
                     onPin: @escaping (CaptureDocument) -> Void) async throws { self.onEdit = onEdit }
     func pin(document: CaptureDocument, backgroundURL: URL?,
-             onEdit: @escaping (CaptureDocument) -> Void, onSave: @escaping (CaptureDocument) -> Void) async throws {
+             onCopy: @escaping (CaptureDocument) -> Void, onEdit: @escaping (CaptureDocument) -> Void, onSave: @escaping (CaptureDocument) -> Void) async throws {
         self.onEdit = onEdit; await gate?.hold()
     }
     func setCaptureHidden(_ hidden: Bool) {}

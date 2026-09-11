@@ -9,6 +9,18 @@ import XCTest
 /// native gates: the lead must verify who receives an actual physical chord.
 @MainActor
 final class FloatingKeyboardInteractionTests: XCTestCase {
+    func testCopyFollowsTheKeyFloatingCaptureWithoutEscapingToOtherWindows() async throws {
+        let fixture = try await FloatingKeyboardFixture(firstIsRecent: true)
+        defer { fixture.close() }
+        try await fixture.focus(fixture.first)
+        try await fixture.press(.copy)
+        try await fixture.focus(fixture.second)
+        try await fixture.press(.copy)
+        try await fixture.focus(fixture.main)
+        try await fixture.press(.copy)
+        XCTAssertEqual(fixture.actions.events, ["first.copy", "second.copy", "main.copy"])
+    }
+
     // A floating shortcut escaping its window would save a different capture.
     // The ordinary window's Save callback proves the event was really delivered.
     func testMainWindowSaveDoesNotInvokeVisibleRecentOrPinSave() async throws {
@@ -178,6 +190,7 @@ private final class FloatingKeyboardFixture {
         payloads.append(payload)
         let actions = actions
         FloatingCaptureController.installContent(FloatingCaptureContent(image: image, payload: payload, isRecent: isRecent,
+            onCopy: { actions.events.append("\(name).copy") },
             onEdit: { actions.events.append("\(name).edit") },
             onSave: { actions.events.append("\(name).save") },
             onPin: { actions.events.append("\(name).pin") },

@@ -9,6 +9,39 @@ import SwiftUI
 private typealias ImageRenderer = SwiftShot.ImageRenderer
 
 final class FloatingCaptureTests: XCTestCase {
+    @MainActor func testCopyFromRecentThumbnailKeepsOriginalRecentPresentation() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("SwiftShotRecentHandoff-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let suiteName = "SwiftShotRecentHandoff.\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let image = source(width: 80, height: 40)
+        let renderer = RecentHandoffRenderer(image: image)
+        let clipboard = RecentHandoffClipboard()
+        let floating = RecentHandoffFloating()
+        let app = AppState(defaults: defaults, recovery: RecoveryStore(root: root.appendingPathComponent("recovery")),
+            backgrounds: BackgroundLibrary(rootURL: root.appendingPathComponent("backgrounds")), clipboard: clipboard,
+            presentsUI: true, renderer: renderer, overlay: RecentHandoffPresenter(), diagnostics: nil,
+            floatingCaptures: floating)
+        let document = CaptureDocument(image: image)
+        document.change { $0.annotations = [CaptureAnnotation(kind: .arrow, start: .zero, end: CGPoint(x: 20, y: 20))] }
+
+        let copied = await app.copy(document)
+        XCTAssertTrue(copied)
+        XCTAssertEqual(floating.recentCount, 1)
+        let copy = try XCTUnwrap(floating.onCopy)
+        copy(CaptureDocument(image: image))
+        for _ in 0..<100 where clipboard.copyCount < 2 {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        XCTAssertEqual(clipboard.copyCount, 2)
+        XCTAssertEqual(floating.recentCount, 1,
+            "Copying the existing thumbnail must not replace its editable source with a flattened recent panel")
+        XCTAssertEqual(document.edits.annotations.count, 1)
+        _ = await app.prepareToQuit()
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
     @MainActor func testWidePinHostingCannotExpandPastItsInitialContentSize() async throws {
         let image = source(width: 1412, height: 312)
         let panel = FloatingCaptureController.makePanel(kind: .pin, image: image,
@@ -67,7 +100,7 @@ final class FloatingCaptureTests: XCTestCase {
     @MainActor private func installTestContent(image: CGImage, in panel: FloatingCapturePanel, isRecent: Bool) throws -> NSView {
         let payload = FloatingCapturePayload(image: image, renderer: ImageRenderer(cacheByteLimit: 0, cacheEntryLimit: 0))
         FloatingCaptureController.installContent(FloatingCaptureContent(image: image, payload: payload, isRecent: isRecent,
-            onEdit: {}, onSave: {}, onPin: {}, onClose: {}), in: panel)
+            onCopy: {}, onEdit: {}, onSave: {}, onPin: {}, onClose: {}), in: panel)
         return try XCTUnwrap(panel.contentView)
     }
 
@@ -236,6 +269,56 @@ final class FloatingCaptureTests: XCTestCase {
         } catch is CancellationError { }
         catch { XCTFail("Unexpected error: \(error)") }
     }
+}
+
+@MainActor
+private final class RecentHandoffFloating: FloatingCapturePresenting {
+    var recentCount = 0
+    var onCopy: ((CaptureDocument) -> Void)?
+
+    func showRecent(document: CaptureDocument, backgroundURL: URL?, renderedImage: CGImage?, title: String,
+                    onCopy: @escaping (CaptureDocument) -> Void, onEdit: @escaping (CaptureDocument) -> Void,
+                    onSave: @escaping (CaptureDocument) -> Void, onPin: @escaping (CaptureDocument) -> Void) async throws {
+        recentCount += 1
+        self.onCopy = onCopy
+    }
+    func pin(document: CaptureDocument, backgroundURL: URL?, onCopy: @escaping (CaptureDocument) -> Void,
+             onEdit: @escaping (CaptureDocument) -> Void, onSave: @escaping (CaptureDocument) -> Void) async throws {}
+    func setCaptureHidden(_ hidden: Bool) {}
+    func closeAll() {}
+    func handleMemoryPressure() {}
+}
+
+private final class RecentHandoffRenderer: CaptureRendering, @unchecked Sendable {
+    let image: CGImage
+    init(image: CGImage) { self.image = image }
+    func render(_ request: RenderRequest) async throws -> RenderedCapture { RenderedCapture(image: image, png: Data([137, 80, 78, 71])) }
+    func renderImage(_ request: RenderRequest) async throws -> CGImage { image }
+    func clearCache() async {}
+}
+
+@MainActor
+private final class RecentHandoffClipboard: CaptureClipboard {
+    var copyCount = 0
+    func copyPNGData(_ data: Data) -> Bool { copyCount += 1; return true }
+    func copyText(_ text: String) -> Bool { true }
+}
+
+@MainActor
+private final class RecentHandoffPresenter: CapturePresenting {
+    var activeDocument: CaptureDocument?
+    func configure(actions: CaptureActions) {}
+    func present(screens: [FrozenScreen], mode: CaptureMode, style: CaptureStyle, library: BackgroundLibrary,
+                 onDocument: @escaping (CaptureDocument) -> Void, onCopy: @escaping (CaptureDocument) -> Void,
+                 onSave: @escaping (CaptureDocument) -> Void, onOCR: @escaping (CaptureDocument) -> Void,
+                 onCancel: @escaping () -> Void, onDiscard: @escaping (CaptureDocument) -> Void) {}
+    func reopen(document: CaptureDocument, library: BackgroundLibrary, onCopy: @escaping (CaptureDocument) -> Void,
+                onSave: @escaping (CaptureDocument) -> Void, onCancel: @escaping () -> Void,
+                onDocument: @escaping (CaptureDocument) -> Void, onDiscard: @escaping (CaptureDocument) -> Void) {
+        activeDocument = document
+    }
+    func dismiss() { activeDocument = nil }
+    func showStatus(_ message: String, isError: Bool) {}
 }
 
 private final class BitmapReleaseProbe: @unchecked Sendable {

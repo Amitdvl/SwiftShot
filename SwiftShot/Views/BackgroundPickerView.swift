@@ -28,7 +28,7 @@ struct BackgroundPickerView: View {
                 LazyVGrid(columns: columns, spacing: 12) {
                     tile(id: "", name: "None") {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 8).fill(.quaternary.opacity(0.5))
+                            Capsule().fill(.quaternary.opacity(0.5))
                             Image(systemName: "nosign").font(.title2).foregroundStyle(.secondary)
                         }
                     }
@@ -53,9 +53,9 @@ struct BackgroundPickerView: View {
             .frame(minHeight: 100, idealHeight: 185, maxHeight: 220)
             .overlay {
                 if isDropTargeted {
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .fill(Color.accentColor.opacity(0.12))
-                        .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [5])) }
+                        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [5])) }
                         .allowsHitTesting(false)
                 }
             }
@@ -107,7 +107,7 @@ struct BackgroundPickerView: View {
                     .frame(height: 52)
                     .frame(maxWidth: .infinity)
                     .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(Capsule())
                     .overlay(alignment: .topTrailing) {
                         if selection == id {
                             Image(systemName: "checkmark.circle.fill")
@@ -115,7 +115,7 @@ struct BackgroundPickerView: View {
                                 .padding(4)
                         }
                     }
-                    .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(selection == id ? Color.accentColor : Color.primary.opacity(0.1), lineWidth: selection == id ? 2 : 1) }
+                    .overlay { Capsule().strokeBorder(selection == id ? Color.accentColor : Color.primary.opacity(0.1), lineWidth: selection == id ? 2 : 1) }
                 Text(name).font(.caption).lineLimit(1).foregroundStyle(.primary)
             }
             .contentShape(Rectangle())

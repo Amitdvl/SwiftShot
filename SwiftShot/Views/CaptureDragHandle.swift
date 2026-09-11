@@ -153,9 +153,9 @@ final class CaptureDragSourceView: NSView, NSDraggingSource {
     override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
     override func draw(_ dirtyRect: NSRect) {
         NSColor.controlBackgroundColor.setFill()
-        NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 6, yRadius: 6).fill()
+        NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: bounds.height / 2, yRadius: bounds.height / 2).fill()
         NSColor.separatorColor.setStroke()
-        NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 6, yRadius: 6).stroke()
+        NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: bounds.height / 2, yRadius: bounds.height / 2).stroke()
         let label = failed ? "Drag unavailable — retry" : (preparation == nil ? "Drag Edited Image" : "Preparing image…")
         let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12),
                                                         .foregroundColor: NSColor.labelColor]

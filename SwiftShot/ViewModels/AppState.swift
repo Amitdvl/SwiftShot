@@ -395,7 +395,7 @@ final class AppState {
     }
 
     @discardableResult
-    func copy(_ document: CaptureDocument, smaller: Bool = false) async -> Bool {
+    func copy(_ document: CaptureDocument, smaller: Bool = false, presentRecent: Bool = true) async -> Bool {
         guard !isQuitting, !document.isDiscarded, let permit = exportCoordinator.begin(documentID: document.id) else { return false }
         defer { exportCoordinator.finish(permit) }
         exportCoordinator.claimClipboard(permit)
@@ -419,19 +419,19 @@ final class AppState {
             showStatus("Copied · \(result.image.width) × \(result.image.height) px", for: document)
             if isCurrent(document, revision: revision, session: sessionToken) { closeEditor() }
             if phase == .idle && presentsUI {
-                if appSettings.showRecentThumbnail { await showRecent(document, request: request, image: result.image) }
+                if presentRecent && appSettings.showRecentThumbnail { await showRecent(document, request: request, image: result.image) }
                 else { NotificationService.showToast(title: "Copied", subtitle: "Reopen Last Capture to edit or save it.") }
             }
             return true
         } catch {
             // Failure paths may wait for durability; successful Copy must not.
             await preserve(document)
-            report(error.localizedDescription, retry: { [weak self] in Task { await self?.copy(document, smaller: smaller) } })
+            report(error.localizedDescription, retry: { [weak self] in Task { await self?.copy(document, smaller: smaller, presentRecent: presentRecent) } })
             return false
         }
     }
 
-    func save(_ document: CaptureDocument, smaller: Bool = false) async {
+    func save(_ document: CaptureDocument, smaller: Bool = false, presentRecent: Bool = true) async {
         guard !isQuitting, !document.isDiscarded, let permit = exportCoordinator.begin(documentID: document.id) else { return }
         defer { exportCoordinator.finish(permit) }
         let sessionToken = sessionID
@@ -469,13 +469,23 @@ final class AppState {
                 return
             }
             if isCurrent(document, revision: revision, session: sessionToken) { closeEditor() }
-            if presentsUI { NotificationService.showToast(title: "Screenshot saved", subtitle: "\(result.image.width) × \(result.image.height) px · \(url.deletingLastPathComponent().lastPathComponent)") }
+            if presentsUI {
+                if phase == .idle && appSettings.showRecentThumbnail {
+                    if presentRecent {
+                        await showRecent(document, request: request, image: result.image, completion: "Saved")
+                    } else {
+                        NotificationService.showToast(title: "Saved", subtitle: "Reopen Last Capture to edit or save it again.")
+                    }
+                } else {
+                    NotificationService.showToast(title: "Screenshot saved", subtitle: "\(result.image.width) × \(result.image.height) px · \(url.deletingLastPathComponent().lastPathComponent)")
+                }
+            }
             statusMessage = "Saved to \(url.lastPathComponent)"
             diagnostics?.mark(.saveComplete, for: performanceRun)
         } catch {
             await preserve(document)
             report("Save failed: \(error.localizedDescription)",
-                retry: { [weak self] in Task { await self?.save(document, smaller: smaller) } },
+                retry: { [weak self] in Task { await self?.save(document, smaller: smaller, presentRecent: presentRecent) } },
                 chooseFolder: { [weak self] in self?.chooseSaveDirectory(retryDocument: document) })
         }
     }
@@ -961,8 +971,8 @@ final class AppState {
         let token = sessionID, revision = document.revision
         do {
             try await floatingCaptures.pin(document: document, backgroundURL: backgrounds.url(for: document.edits.style.backgroundID),
-                onEdit: { [weak self] snapshot in Task { await self?.editFloatingSnapshot(snapshot) } },
-                onSave: { [weak self] snapshot in Task { await self?.save(snapshot) } })
+                onCopy: { [weak self] snapshot in Task { await self?.copy(snapshot, presentRecent: false) } }, onEdit: { [weak self] snapshot in Task { await self?.editFloatingSnapshot(snapshot) } },
+                onSave: { [weak self] snapshot in Task { await self?.save(snapshot, presentRecent: false) } })
             if isCurrent(document, revision: revision, session: token) { closeEditor() }
         } catch { report("Couldn't pin the capture: \(error.localizedDescription)") }
     }
@@ -980,19 +990,19 @@ final class AppState {
         reopen(document)
     }
 
-    private func showRecent(_ document: CaptureDocument, request: RenderRequest, image: CGImage) async {
+    private func showRecent(_ document: CaptureDocument, request: RenderRequest, image: CGImage, completion: String = "Copied") async {
         let snapshot = CaptureDocument(id: document.id, image: request.image, edits: request.edits, revision: request.revision)
         snapshot.isPrivate = document.isPrivate
         snapshot.workflow = document.workflow
         do {
-            try await floatingCaptures.showRecent(document: snapshot, backgroundURL: request.backgroundURL, renderedImage: image,
-                onEdit: { [weak self] snapshot in Task { await self?.editFloatingSnapshot(snapshot) } },
-                onSave: { [weak self] snapshot in Task { await self?.save(snapshot) } },
+            try await floatingCaptures.showRecent(document: snapshot, backgroundURL: request.backgroundURL, renderedImage: image, title: completion,
+                onCopy: { [weak self] snapshot in Task { await self?.copy(snapshot, presentRecent: false) } }, onEdit: { [weak self] snapshot in Task { await self?.editFloatingSnapshot(snapshot) } },
+                onSave: { [weak self] snapshot in Task { await self?.save(snapshot, presentRecent: false) } },
                 onPin: { [weak self] snapshot in Task { await self?.pin(snapshot) } })
         } catch {
             if !(error is CancellationError) {
-                statusMessage = "Copied successfully; recent thumbnail unavailable: \(error.localizedDescription)"
-                NotificationService.showToast(title: "Copied", subtitle: "The recent thumbnail could not open. Reopen Last Capture to edit it.")
+                statusMessage = "\(completion) successfully; recent thumbnail unavailable: \(error.localizedDescription)"
+                NotificationService.showToast(title: completion, subtitle: "The recent thumbnail could not open. Reopen Last Capture to edit it.")
             }
         }
     }

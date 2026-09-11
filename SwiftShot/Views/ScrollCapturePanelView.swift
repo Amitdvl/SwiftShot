@@ -64,8 +64,9 @@ struct ScrollCapturePanelView: View {
                     .keyboardShortcut(.escape, modifiers: [])
             }
         }
-        .padding(16)
+        .buttonStyle(CaptureButtonStyle())
+        .padding(20)
         .frame(width: 352)
-        .background(.regularMaterial)
+
     }
 }

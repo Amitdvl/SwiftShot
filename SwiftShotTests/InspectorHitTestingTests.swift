@@ -8,6 +8,24 @@ import XCTest
 /// NSEvents; no product gesture/action methods or global input APIs are invoked.
 @MainActor
 final class InspectorHitTestingTests: XCTestCase {
+    func testPrimaryTargetsStayFixedAcrossInspectorChangesAboveAndBelow() async throws {
+        for placement in [CGRect(x: 29, y: 34, width: 610, height: 816),
+                          CGRect(x: 500, y: 500, width: 320, height: 180)] {
+            let fixture = try await InspectorHitTestingFixture(captureFrame: placement)
+            defer { fixture.close() }
+            try await fixture.clickInspectorButton(label: "Annotate")
+            let copy = try fixture.primaryButtonFrame(label: "Copy")
+            let redact = try fixture.primaryButtonFrame(label: "Redact Screenshot")
+            for label in ["More", "Background & Style", "Annotate", "Annotate"] {
+                try await fixture.clickInspectorButton(label: label)
+                XCTAssertEqual(try fixture.primaryButtonFrame(label: "Copy"), copy,
+                    "Opening or closing \(label) must not move Copy's actual native hit target")
+                XCTAssertEqual(try fixture.primaryButtonFrame(label: "Redact Screenshot"), redact)
+                XCTAssertTrue(fixture.document.edits.annotations.isEmpty)
+            }
+        }
+    }
+
     func testUnpaintedInspectorTailDoesNotSwallowReleasedArrowDrag() async throws {
         let fixture = try await InspectorHitTestingFixture()
         defer { fixture.close() }
@@ -132,7 +150,7 @@ private final class InspectorHitTestingFixture {
     private var pendingEventNumbers: Set<Int> = []
     private var closed = false
 
-    init(logicalHeight: CGFloat = 956, selectedText: Bool = false) async throws {
+    init(logicalHeight: CGFloat = 956, selectedText: Bool = false, captureFrame: CGRect? = nil) async throws {
         _ = NSApplication.shared
         originalActivationPolicy = NSApp.activationPolicy()
         let display = try XCTUnwrap(NSScreen.main ?? NSScreen.screens.first,
@@ -163,7 +181,7 @@ private final class InspectorHitTestingFixture {
             windows: [], isLive: true)
         session.document = document
         session.activeScreenID = screen.id
-        session.imagePlacement = CGRect(x: 29, y: 34, width: 610, height: 816)
+        session.imagePlacement = captureFrame ?? CGRect(x: 29, y: 34, width: 610, height: 816)
         session.annotationTool = selectedText ? .text : .arrow
         session.selectedAnnotationID = selectedText ? text.id : nil
         session.cropMode = false
@@ -275,6 +293,10 @@ private final class InspectorHitTestingFixture {
                 "The lower inspector control must be inside the actual clip viewport, not merely inside the window")
         }
         return frame
+    }
+
+    func primaryButtonFrame(label: String) throws -> CGRect {
+        try inspectorButtonFrame(label: label)
     }
 
     func isInspectorButtonFullyVisible(label: String) throws -> Bool {

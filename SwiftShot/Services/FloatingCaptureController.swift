@@ -288,6 +288,7 @@ final class FloatingCaptureController {
     }
 
     func showRecent(document: CaptureDocument, backgroundURL: URL?, renderedImage: CGImage? = nil,
+                    title: String = "Recent Capture", onCopy: @escaping (CaptureDocument) -> Void,
                     onEdit: @escaping (CaptureDocument) -> Void,
                     onSave: @escaping (CaptureDocument) -> Void,
                     onPin: @escaping (CaptureDocument) -> Void) async throws {
@@ -302,18 +303,19 @@ final class FloatingCaptureController {
         try Task.checkCancellation()
         guard recentGeneration == generation else { throw CancellationError() }
         try await present(kind: .recent, document: document, backgroundURL: backgroundURL, renderedImage: renderedImage,
-                          recentGeneration: generation, onEdit: onEdit, onSave: onSave, onPin: onPin)
+                          recentGeneration: generation, recentTitle: title, onCopy: onCopy, onEdit: onEdit, onSave: onSave, onPin: onPin)
     }
 
     func pin(document: CaptureDocument, backgroundURL: URL?,
-             onEdit: @escaping (CaptureDocument) -> Void,
+             onCopy: @escaping (CaptureDocument) -> Void, onEdit: @escaping (CaptureDocument) -> Void,
              onSave: @escaping (CaptureDocument) -> Void) async throws {
         try await present(kind: .pin, document: document, backgroundURL: backgroundURL, renderedImage: nil,
-                          recentGeneration: nil, onEdit: onEdit, onSave: onSave, onPin: nil)
+                          recentGeneration: nil, recentTitle: nil, onCopy: onCopy, onEdit: onEdit, onSave: onSave, onPin: nil)
     }
 
     private func present(kind: FloatingCaptureBudget.Kind, document: CaptureDocument, backgroundURL: URL?, renderedImage: CGImage?,
-                         recentGeneration: UUID?, onEdit: @escaping (CaptureDocument) -> Void,
+                         recentGeneration: UUID?, recentTitle: String?, onCopy: @escaping (CaptureDocument) -> Void,
+                         onEdit: @escaping (CaptureDocument) -> Void,
                          onSave: @escaping (CaptureDocument) -> Void,
                          onPin: ((CaptureDocument) -> Void)?) async throws {
         try Task.checkCancellation()
@@ -336,8 +338,9 @@ final class FloatingCaptureController {
             }
             let payload = FloatingCapturePayload(image: image, queue: queue, maximumPNGBytes: cost.pngLimit)
             let panel = Self.makePanel(kind: kind, image: image, visible: display.visibleFrame, cascadeIndex: entries.count)
+            if let recentTitle { panel.title = recentTitle }
             let content = FloatingCaptureContent(image: image, payload: payload, isRecent: kind == .recent,
-                onEdit: { [weak self] in
+                onCopy: { onCopy(snapshot.flattenedDocument(image: image)) }, onEdit: { [weak self] in
                     let editable = snapshot.editableDocument()
                     if kind == .recent { self?.closeEntry(id) }
                     onEdit(editable)
@@ -472,6 +475,7 @@ struct FloatingCaptureContent: View {
     let image: CGImage
     let payload: FloatingCapturePayload
     let isRecent: Bool
+    let onCopy: () -> Void
     let onEdit: () -> Void
     let onSave: () -> Void
     let onPin: () -> Void
@@ -480,21 +484,37 @@ struct FloatingCaptureContent: View {
         VStack(spacing: 0) {
             FloatingEditedImageView(image: image)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(.quaternary)
+                .padding(8)
                 .onDrag { payload.itemProvider() }
                 .help("Drag this edited image into an app. Move the pin by its title bar.")
                 .accessibilityLabel("Edited screenshot. Drag to share image.")
-            HStack(spacing: 10) {
-                Button("Edit", action: onEdit).keyboardShortcut("e", modifiers: .command)
+                .contextMenu {
+                    Button("Copy", systemImage: "document.on.document", action: onCopy)
+                    Button("Save", systemImage: "square.and.arrow.down", action: onSave)
+                    Button("Edit", systemImage: "pencil.tip", action: onEdit)
+                    if isRecent { Button("Pin to Screen", systemImage: "pin", action: onPin) }
+                }
+            HStack(spacing: 5) {
+                Button("Copy", action: onCopy)
+                    .buttonStyle(CaptureButtonStyle(prominent: true))
+                    .keyboardShortcut("c", modifiers: .command)
                 Button("Save", action: onSave).keyboardShortcut("s", modifiers: .command)
-                if isRecent { Button("Pin", action: onPin) }
+                Button(action: onEdit) { Image(systemName: "pencil.tip") }
+                    .buttonStyle(CaptureButtonStyle(compact: true))
+                    .accessibilityLabel("Edit capture").help("Edit (⌘E)")
+                    .keyboardShortcut("e", modifiers: .command)
                 Spacer(minLength: 0)
                 Button(action: onClose) { Image(systemName: "xmark") }
+                    .buttonStyle(CaptureButtonStyle(compact: true))
                     .accessibilityLabel(isRecent ? "Dismiss recent capture" : "Close pin")
                     .keyboardShortcut(.cancelAction)
             }
-            .controlSize(.small).padding(.horizontal, 10).frame(height: 44)
-            .background(.regularMaterial)
+            .buttonStyle(CaptureButtonStyle())
+            .padding(.horizontal, 5).padding(.vertical, 5)
+            .captureChrome(capsule: true)
+            .padding(.horizontal, 5)
+            .frame(height: 44)
+
         }
     }
 }

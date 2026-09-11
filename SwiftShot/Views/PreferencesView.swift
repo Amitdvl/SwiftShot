@@ -9,28 +9,16 @@ struct PreferencesView: View {
             backgroundTab.tabItem { Label("Backgrounds", systemImage: "photo.on.rectangle.angled") }
             WorkflowPresetsView().tabItem { Label("Presets", systemImage: "slider.horizontal.3") }
             shortcuts.tabItem { Label("Shortcuts", systemImage: "keyboard") }
+            advanced.tabItem { Label("Advanced", systemImage: "ellipsis") }
         }
+        .buttonStyle(CaptureButtonStyle())
+        .buttonBorderShape(.capsule)
         .frame(width: 570, height: 540)
     }
 
     private var general: some View {
         @Bindable var state = appState
         return Form {
-            Section {
-                HStack {
-                    Label("Capture. Finish. Keep moving.", systemImage: "camera.viewfinder").font(.title3.weight(.semibold))
-                    Spacer()
-                    Menu("Capture") {
-                        ForEach(CaptureMode.allCases, id: \.self) { mode in
-                            Button(mode.label, systemImage: mode.icon) { Task { await appState.capture(mode: mode) } }
-                        }
-                    }
-                    .menuStyle(.borderlessButton).fixedSize()
-                    .disabled(appState.isCapturing)
-                }
-                Text("Freeze your screen, select an area, then edit and share from a compact toolbar.")
-                    .foregroundStyle(.secondary).font(.callout)
-            }
             Section("Saving") {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
@@ -50,11 +38,7 @@ struct PreferencesView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 Toggle("Show a recent capture thumbnail", isOn: $state.appSettings.showRecentThumbnail)
                     .onChange(of: appState.appSettings.showRecentThumbnail) { _, _ in appState.saveSettings() }
-                Picker("Smaller Share maximum dimension", selection: $state.appSettings.shareMaxDimension) {
-                    Text("1280 px").tag(1280)
-                    Text("2048 px").tag(2048)
-                    Text("4096 px").tag(4096)
-                }.onChange(of: appState.appSettings.shareMaxDimension) { _, _ in appState.saveSettings() }
+
             }
             Section("Recovery") {
                 Toggle("Private captures (no recovery or text index)", isOn: $state.appSettings.privateCapture)
@@ -71,16 +55,31 @@ struct PreferencesView: View {
                         .disabled(appState.lastDocument == nil && appState.recoveredRecords.isEmpty)
                 }
             }
-            Section("Diagnostics") {
-                Button("Performance Diagnostics…") { PerformanceDiagnostics.shared.showWindow() }
-                Text("Optional in-memory performance measurements. Off by default; export only when you choose.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
             if let status = appState.statusMessage {
                 Section { Text(status).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var advanced: some View {
+        @Bindable var state = appState
+        return Form {
+            Section("Smaller exports") {
+                Picker("Smaller Share maximum dimension", selection: $state.appSettings.shareMaxDimension) {
+                    Text("1280 px").tag(1280)
+                    Text("2048 px").tag(2048)
+                    Text("4096 px").tag(4096)
+                }.onChange(of: appState.appSettings.shareMaxDimension) { _, _ in appState.saveSettings() }
+            }
+            Section("Troubleshooting") {
+                Button("Performance Diagnostics…", systemImage: "gauge.with.dots.needle.50percent") {
+                    PerformanceDiagnostics.shared.showWindow()
+                }
+                Text("Optional measurements, off by default. Nothing is exported unless you choose.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }.formStyle(.grouped)
     }
 
     private var backgroundTab: some View {
@@ -111,7 +110,7 @@ struct PreferencesView: View {
                                   systemImage: CaptureMode(rawValue: shortcut.mode)?.icon ?? "keyboard")
                             Spacer()
                             Text(shortcut.displayString).font(.callout.monospaced())
-                                .padding(.horizontal, 8).padding(.vertical, 4).background(.quaternary, in: RoundedRectangle(cornerRadius: 5))
+                                .padding(.horizontal, 8).padding(.vertical, 4).background(.quaternary, in: Capsule())
                             Toggle("Enable \(CaptureMode(rawValue: shortcut.mode)?.label ?? shortcut.mode)", isOn: Binding(
                                 get: { appState.appSettings.shortcuts[index].enabled },
                                 set: { appState.appSettings.shortcuts[index].enabled = $0; appState.saveSettings(); appState.registerShortcuts() }
@@ -157,7 +156,7 @@ private struct StyleSampleView: View {
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: style.backgroundID.isEmpty ? 0 : 10))
             .shadow(color: .black.opacity(0.18), radius: style.backgroundID.isEmpty ? 0 : 8, y: 4)
         }
-        .clipped().clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipped().clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .accessibilityLabel("Background preview")
     }
 }

@@ -6,22 +6,23 @@ struct CaptureToolbarView: View {
     let document: CaptureDocument
 
     var body: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 5) {
             tool("Copy", icon: "document.on.document", shortcut: "⌘C", prominent: true) { session.commitStyle(); session.onCopy(document) }
             tool("Save", icon: "square.and.arrow.down", shortcut: "⌘S") { session.commitStyle(); session.onSave(document) }
-            Divider().frame(height: 28).padding(.horizontal, 4)
-            tool("Background", icon: "photo.on.rectangle", selected: session.activePopover == .backgrounds) { toggle(.backgrounds) }
-            tool("Annotate", icon: "pencil.tip.crop.circle", selected: session.annotationTool != nil || session.activePopover == .annotations) { toggle(.annotations) }
+            Divider().frame(height: 20).padding(.horizontal, 3)
+            tool("Annotate", icon: "pencil.tip", selected: session.annotationTool != nil || session.activePopover == .annotations) { toggle(.annotations) }
+            tool("Redact", icon: "rectangle.fill", shortcut: "X", selected: session.annotationTool == .redact) {
+                session.commitStyle(); session.annotationTool = .redact
+                session.cropMode = false; session.selectedAnnotationID = nil; session.activePopover = .annotations
+            }
             tool("Crop", icon: "crop", selected: session.cropMode) {
                 session.commitStyle(); session.cropMode.toggle(); session.annotationTool = nil
                 session.selectedAnnotationID = nil; session.activePopover = nil
             }
-            tool("More", icon: "ellipsis", selected: session.activePopover == .more) { toggle(.more) }
+            tool("More", icon: "ellipsis", selected: session.activePopover == .more || session.activePopover == .backgrounds) { toggle(.more) }
         }
-        .padding(7)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 17))
-        .overlay { RoundedRectangle(cornerRadius: 17).strokeBorder(.primary.opacity(0.12), lineWidth: 0.5) }
-        .shadow(color: .black.opacity(0.22), radius: 22, y: 8)
+        .padding(8)
+        .captureChrome(capsule: true)
         .disabled(session.isDragging)
     }
 
@@ -44,26 +45,20 @@ private struct CaptureToolButton: View {
     let prominent: Bool
     let selected: Bool
     let action: () -> Void
-    @State private var hovered = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 5) {
-                Image(systemName: icon).font(.system(size: 17, weight: .medium)).frame(height: 20)
-                Text(title).font(.system(size: 10, weight: .medium))
+            if title == "Copy" || title == "Save" {
+                Label(title, systemImage: icon)
+            } else {
+                Image(systemName: icon).font(.system(size: 16, weight: .medium))
             }
-            .frame(width: title == "Background" ? 77 : 58, height: 47)
-            .foregroundStyle(prominent ? Color.white : Color.primary)
-            .background(prominent ? Color.accentColor.opacity(hovered ? 0.85 : 1) : (selected || hovered ? Color.primary.opacity(selected ? 0.12 : 0.07) : Color.clear), in: RoundedRectangle(cornerRadius: 11))
-            .contentShape(RoundedRectangle(cornerRadius: 11))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CaptureButtonStyle(prominent: prominent, selected: selected,
+                                        compact: title != "Copy" && title != "Save"))
         .help(shortcut.map { "\(title) (\($0))" } ?? title)
-        .accessibilityLabel(title)
+        .accessibilityLabel(title == "Redact" ? "Redact Screenshot" : title)
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .onHover { value in hovered = value; if value { NSCursor.arrow.set() } }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovered)
+        .onHover { if $0 { NSCursor.arrow.set() } }
     }
 }
 
@@ -84,7 +79,6 @@ struct OverlayInspectorView: View {
                 styleSlider("Corners", value: \.cornerRadius, range: 0...64)
                 styleSlider("Shadow", value: \.shadow, range: 0...64)
             case .annotations:
-                Text("Annotate").font(.headline)
                 HStack(spacing: 8) {
                     annotation("Arrow", icon: "arrow.up.right", kind: .arrow)
                     annotation("Rectangle", icon: "rectangle", kind: .rectangle)
@@ -135,6 +129,9 @@ struct OverlayInspectorView: View {
                     Button("Done") { session.annotationTool = nil; session.activePopover = nil }
                 }.font(.caption)
             case .more:
+                Button("Background & Style", systemImage: "photo.on.rectangle") {
+                    session.commitStyle(); session.activePopover = .backgrounds
+                }
                 if session.mode == .ocr {
                     Button("Recognize Text Again", systemImage: "text.viewfinder") { session.onOCR(document) }
                     Divider()
@@ -156,26 +153,20 @@ struct OverlayInspectorView: View {
                         onError: { error in session.status = error.localizedDescription; session.statusIsError = true })
                         .frame(width: 170, height: 30)
                 }
-                Text("\(outputWidth) × \(outputHeight) pixels · Lossless PNG").font(.callout.monospacedDigit())
                 Text("Editable recovery keeps the original pixels behind crops and redactions. Exported PNGs contain only the flattened visible image.")
                     .font(.caption).foregroundStyle(.secondary)
-                Text("⌘C Copy   ⌘S Save   ⌘Z Undo   ⇧⌘Z Redo").font(.caption).foregroundStyle(.secondary)
                 Button("Close Editor", systemImage: "xmark") { session.commitStyle(); session.onCancel() }
                 Button("Discard Screenshot", systemImage: "trash", role: .destructive) { session.onDiscard(document) }
             case nil: EmptyView()
             }
         }
-        .padding(16)
+        .buttonStyle(CaptureButtonStyle())
+        .padding(20)
         .frame(width: 380)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 17))
-        .overlay { RoundedRectangle(cornerRadius: 17).strokeBorder(.primary.opacity(0.12), lineWidth: 0.5) }
-        .shadow(color: .black.opacity(0.18), radius: 18, y: 5)
+        .captureChrome()
         .disabled(session.isDragging)
     }
 
-    private var outputWidth: Int { Int(document.edits.crop.width) + padding * 2 }
-    private var outputHeight: Int { Int(document.edits.crop.height) + padding * 2 }
-    private var padding: Int { document.edits.style.backgroundID.isEmpty ? 0 : Int(document.edits.style.padding.rounded()) }
     private var annotationHint: String {
         switch session.annotationTool {
         case .text: "Click the screenshot to place text."
@@ -197,10 +188,9 @@ struct OverlayInspectorView: View {
                 Image(systemName: icon).font(.system(size: 18))
                 Text(title).font(.caption)
             }
-            .frame(maxWidth: .infinity).frame(height: 52)
-            .background(session.annotationTool == kind ? Color.accentColor.opacity(0.17) : Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 9))
+            .frame(maxWidth: .infinity).frame(height: 48)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CaptureButtonStyle(selected: session.annotationTool == kind, compact: true))
         .accessibilityLabel(title)
         .accessibilityAddTraits(session.annotationTool == kind ? .isSelected : [])
     }

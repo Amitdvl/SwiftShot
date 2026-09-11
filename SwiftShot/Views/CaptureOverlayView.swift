@@ -21,7 +21,6 @@ struct CaptureOverlayView: View {
     @State private var toolbarOrigin: CGPoint?
     @State private var toolbarDragOrigin: CGPoint?
     @FocusState private var textFocused: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var screenSize: CGSize { screen.frame.size }
     private var sourceImage: CGImage { document?.image ?? screen.image }
@@ -59,10 +58,24 @@ struct CaptureOverlayView: View {
         return max(14, (display?.safeAreaInsets.top ?? 0) + 8)
     }
 
+    private var toolbarAnchor: CGPoint {
+        let automatic = OverlayToolbarLayout.frame(screen: screenSize, topInset: toolbarTopInset,
+            size: CGSize(width: min(428, screenSize.width - 28), height: 80),
+            near: canvasFrame ?? .zero)
+        return toolbarOrigin ?? automatic.origin
+    }
+
+    private var inspectorAbove: Bool {
+        toolbarAnchor.y - toolbarTopInset > screenSize.height - toolbarAnchor.y - 94
+    }
+
     private var toolbarCapacity: OverlayToolbarLayout {
-        OverlayToolbarLayout(screen: screenSize, topInset: toolbarTopInset,
+        let available = inspectorAbove ? toolbarAnchor.y - toolbarTopInset + 80
+            : screenSize.height - toolbarAnchor.y - 14
+        return OverlayToolbarLayout(screen: screenSize, topInset: toolbarTopInset,
                              inspectorHeight: session.activePopover == nil ? 0 : .greatestFiniteMagnitude,
-                             hasTextEntry: textAnchor != nil, hasStatus: !session.status.isEmpty)
+                             hasTextEntry: textAnchor != nil, hasStatus: !session.status.isEmpty,
+                             availableHeight: available)
     }
 
     var body: some View {
@@ -289,29 +302,39 @@ struct CaptureOverlayView: View {
             }
             if screen.isLive {
                 Button("Refresh Windows") { session.actions.switchMode(.window) }
-                    .buttonStyle(.bordered).controlSize(.small)
+                    .buttonStyle(CaptureButtonStyle()).controlSize(.small)
             }
-            Button { session.onCancel() } label: { Image(systemName: "xmark.circle.fill").font(.title3) }
-                .buttonStyle(.plain).accessibilityLabel("Cancel Capture")
+            Button { session.onCancel() } label: { Image(systemName: "xmark").font(.system(size: 12, weight: .semibold)) }
+                .buttonStyle(CaptureButtonStyle(compact: true)).accessibilityLabel("Cancel Capture")
         }
         .padding(.horizontal, 18).padding(.vertical, 12)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 15))
+        .captureChrome(capsule: true)
         .position(x: screenSize.width / 2, y: max(50, screenSize.height - 62))
     }
 
     private func toolbar(document: CaptureDocument, selection: CGRect) -> some View {
         OverlayToolbarPlacement(screen: screenSize, topInset: toolbarTopInset,
-            selection: selection, manualOrigin: toolbarOrigin) {
+            selection: selection, manualOrigin: toolbarAnchor, expandsAbove: inspectorAbove) {
             toolbarContent(document: document)
                 .frame(width: toolbarCapacity.size.width)
         }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: session.activePopover)
+        .onAppear { if toolbarOrigin == nil { toolbarOrigin = toolbarAnchor } }
+        // Optional rows expand away from this compact anchor. No placement animation.
     }
 
     private func toolbarContent(document: CaptureDocument) -> some View {
+        VStack(spacing: 8) {
+            if inspectorAbove { toolbarDetails(document: document) }
+            toolbarPrimary(document: document)
+            if !inspectorAbove { toolbarDetails(document: document) }
+        }
+        .captureGlassGroup()
+    }
+
+    private func toolbarPrimary(document: CaptureDocument) -> some View {
         let padding = session.effectiveStyle.backgroundID.isEmpty ? 0 : Int(session.effectiveStyle.padding.rounded())
         return VStack(spacing: 8) {
-            CaptureToolbarView(session: session, document: document).frame(height: 61)
+            CaptureToolbarView(session: session, document: document).frame(height: 50)
             HStack(spacing: 7) {
                 Image(systemName: "line.3.horizontal").font(.system(size: 10))
                 Text("\(Int(document.edits.crop.width) + padding * 2) × \(Int(document.edits.crop.height) + padding * 2) px · PNG")
@@ -319,10 +342,22 @@ struct CaptureOverlayView: View {
             }
             .foregroundStyle(.primary)
             .frame(maxWidth: .infinity).frame(height: 22)
-            .background(.regularMaterial, in: Capsule())
+            .captureChrome(capsule: true)
             .contentShape(Rectangle())
             .help("Drag to move the toolbar")
             .accessibilityLabel("Output dimensions. Drag to move the toolbar.")
+        }
+        .overlay {
+            GeometryReader { geometry in
+                toolbarDragHandle(frame: geometry.frame(in: .named("SwiftShotCaptureOverlay")))
+                    .frame(height: 22)
+                    .offset(y: 58)
+            }
+        }
+    }
+
+    private func toolbarDetails(document: CaptureDocument) -> some View {
+        Group {
             if session.activePopover != nil {
                 CappedInspectorLayout(maximumHeight: toolbarCapacity.inspectorHeight) {
                     ViewThatFits(in: .vertical) {
@@ -347,7 +382,7 @@ struct CaptureOverlayView: View {
                         .accessibilityLabel("Cancel Text")
                 }
                 .padding(.horizontal, 12).frame(height: 48)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                .captureChrome(capsule: true)
                 .task(id: textFocusRequest) {
                     // The field must enter the responder hierarchy before requesting focus.
                     // A new placement also needs a false → true transition when the row already exists.
@@ -369,21 +404,12 @@ struct CaptureOverlayView: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(session.statusIsError ? Color.orange : Color.primary)
                 .padding(.horizontal, 12).frame(height: 48)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+                .captureChrome(capsule: true)
                 .help(session.status)
                 .accessibilityLabel(session.status)
             }
         }
-        .overlay {
-            GeometryReader { geometry in
-                // Only the dimensions strip receives this gesture. Measuring in
-                // an overlay preserves the content's intrinsic layout while
-                // supplying its complete current frame for drag-end clamping.
-                toolbarDragHandle(frame: geometry.frame(in: .named("SwiftShotCaptureOverlay")))
-                    .frame(height: 22)
-                    .offset(y: 61 + 8)
-            }
-        }
+        .buttonStyle(CaptureButtonStyle())
     }
 
     private func toolbarDragHandle(frame: CGRect) -> some View {
@@ -593,6 +619,7 @@ private struct OverlayToolbarPlacement: Layout {
     let topInset: CGFloat
     let selection: CGRect
     let manualOrigin: CGPoint?
+    var expandsAbove = false
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize { screen }
 
@@ -600,8 +627,11 @@ private struct OverlayToolbarPlacement: Layout {
         guard let toolbar = subviews.first else { return }
         let width = min(428, screen.width - 28)
         let content = toolbar.sizeThatFits(ProposedViewSize(width: width, height: nil))
+        let origin = manualOrigin.map {
+            CGPoint(x: $0.x, y: expandsAbove ? $0.y + 80 - content.height : $0.y)
+        }
         let frame = OverlayToolbarLayout.frame(screen: screen, topInset: topInset,
-            size: CGSize(width: width, height: content.height), near: selection, manualOrigin: manualOrigin)
+            size: CGSize(width: width, height: content.height), near: selection, manualOrigin: origin)
         toolbar.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
             anchor: .topLeading, proposal: ProposedViewSize(width: frame.width, height: frame.height))
     }
@@ -614,13 +644,13 @@ struct OverlayToolbarLayout {
     let size: CGSize
     let inspectorHeight: CGFloat
 
-    init(screen: CGSize, topInset: CGFloat, inspectorHeight preferred: CGFloat, hasTextEntry: Bool, hasStatus: Bool) {
+    init(screen: CGSize, topInset: CGFloat, inspectorHeight preferred: CGFloat, hasTextEntry: Bool, hasStatus: Bool, availableHeight: CGFloat? = nil) {
         self.screen = screen
         self.topInset = topInset
         // Toolbar + dimensions strip, then eight points between optional rows.
-        let fixedHeight: CGFloat = 61 + 8 + 22 + (hasTextEntry ? 56 : 0) + (hasStatus ? 56 : 0)
+        let fixedHeight: CGFloat = 50 + 8 + 22 + (hasTextEntry ? 56 : 0) + (hasStatus ? 56 : 0)
         let inspectorGap: CGFloat = preferred > 0 ? 8 : 0
-        inspectorHeight = min(preferred, max(0, screen.height - topInset - 14 - fixedHeight - inspectorGap))
+        inspectorHeight = min(preferred, max(0, (availableHeight ?? (screen.height - topInset - 14)) - fixedHeight - inspectorGap))
         size = CGSize(width: min(428, screen.width - 28), height: fixedHeight + inspectorGap + inspectorHeight)
     }
 

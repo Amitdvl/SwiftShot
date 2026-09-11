@@ -4,6 +4,12 @@
 
 **Delivered:** product source commit `f9ea9c958834dac41d3510e43a385918134b712f` was pushed to `origin/main` and verified against the remote ref. The installed app's signature and executable hash were rechecked after publication; it remains running. No new material blocker was found in the bounded finish pass. Documentation-only delivery bookkeeping may follow this product commit without changing the tested binary.
 
+## Rounded native polish candidate
+
+The follow-up rounded-native polish candidate was built and installed from the final working tree on September 11, 2026. Its optimized Release suite passed **501/501 tests** (`build/polish/final-release-after-handoff.log`); the focused product slice passed **77/77** and the recent-thumbnail handoff regression passed separately. `script/build_and_run.sh --verify` completed the guarded Apple Development build, install and launch. The installed executable SHA-256 is `50004a6286c8658f98a42d41cc1b27c731d757550060eb4e4291c9ac657f298c`; `codesign --verify --deep --strict` passed. The package `build/polish/SwiftShot-rounded-native-polish-final.zip` passed `unzip -tq` with SHA-256 `3297e6123bbf2ddc580f6ab499fbf2cc90afeeb2bd9eb47f3abf8c10f869d4d4`.
+
+The installed Settings window was inspected in light appearance with the rounded saving, recovery and recent-capture controls visible. Earlier retained native evidence covers dark appearance, increased contrast and reduced-transparency behavior. The native keyboard fixture was initially unable to acquire its own active/key window, then passed in the final full suite after the owned installed app was quit normally; that transient setup failure is retained in `build/polish/floating-keyboard-retry.log`.
+
 ## Verified on the installed candidate
 
 - **497 Release XCTest cases passed, zero failures**, real process exit 0. Complete log/result: `product-finish-release.log` and `product-finish-release.xcresult`. Includes capture/export ownership, recovery/private mode, annotation/rendering, scrolling, history, presets, floating UI and App Intents behavior tests. Test-host AppKit/transaction and system App Intents warnings remain in the logs; a passing test is not proof of every external OS integration.

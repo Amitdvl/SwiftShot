@@ -37,7 +37,7 @@ struct MenuBarView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
-        ForEach(CaptureMode.allCases, id: \.self) { mode in
+        ForEach([CaptureMode.region, .window, .fullscreen], id: \.self) { mode in
             Button { Task { await appState.capture(mode: mode) } } label: {
                 Label(mode.label, systemImage: mode.icon)
             }
@@ -49,14 +49,19 @@ struct MenuBarView: View {
         Button("Private Region Capture", systemImage: "lock.shield") {
             Task { await appState.capture(mode: .region, privateCapture: true) }
         }.disabled(appState.isCapturing)
-        Button("Scrolling Capture…", systemImage: "scroll") {
-            Task { await appState.capture(mode: .region, scrollingCapture: true) }
-        }.disabled(appState.isCapturing)
+        Menu("More Capture Options") {
+            Button("Copy Text from Screen", systemImage: "text.viewfinder") {
+                Task { await appState.capture(mode: .ocr) }
+            }.disabled(appState.isCapturing)
+            Button("Scrolling Capture…", systemImage: "scroll") {
+                Task { await appState.capture(mode: .region, scrollingCapture: true) }
+            }.disabled(appState.isCapturing)
+            Button("Recapture Last Region") { Task { await appState.captureLastRegion() } }
+                .disabled(appState.lastRegion == nil || appState.isCapturing)
+        }
         Divider()
         Button("Reopen Last Capture") { Task { await appState.reopenLastCapture() } }
             .disabled(appState.lastDocument == nil && appState.recoveredRecords.isEmpty)
-        Button("Recapture Last Region") { Task { await appState.captureLastRegion() } }
-            .disabled(appState.lastRegion == nil || appState.isCapturing)
         Button("Capture History…", systemImage: "clock.arrow.circlepath") { appState.showHistory() }
         let unsaved = appState.recoveredRecords.filter { $0.savedPath == nil }
         if !unsaved.isEmpty {
@@ -72,9 +77,6 @@ struct MenuBarView: View {
             Button("Show Last Save in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
         }
         Divider()
-        Button("Performance Diagnostics…", systemImage: "gauge.with.dots.needle.50percent") {
-            PerformanceDiagnostics.shared.showWindow()
-        }
         Button("Settings…") { appState.showPreferences() }.keyboardShortcut(",", modifiers: [.command])
         Button("Quit SwiftShot") { NSApp.terminate(nil) }.keyboardShortcut("q", modifiers: [.command])
     }

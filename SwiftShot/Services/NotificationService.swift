@@ -82,7 +82,7 @@ private struct StatusToastView: View {
                     Text(message).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
-                Button(action: onClose) { Image(systemName: "xmark") }.buttonStyle(.plain).help("Dismiss")
+                Button(action: onClose) { Image(systemName: "xmark") }.buttonStyle(CaptureButtonStyle(compact: true)).help("Dismiss").accessibilityLabel("Dismiss notification")
             }
             if retry != nil || chooseFolder != nil || openSettings != nil {
                 HStack {
@@ -92,9 +92,9 @@ private struct StatusToastView: View {
                 }
             }
         }
-        .padding(16)
+        .buttonStyle(CaptureButtonStyle())
+        .padding(20)
         .frame(width: 340, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.white.opacity(0.12)))
+        .captureChrome()
     }
 }

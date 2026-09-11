@@ -112,10 +112,10 @@ extension ScrollCaptureController: ScrollCapturePresenting {}
 @MainActor
 protocol FloatingCapturePresenting: AnyObject {
     func showRecent(document: CaptureDocument, backgroundURL: URL?, renderedImage: CGImage?,
-                    onEdit: @escaping (CaptureDocument) -> Void, onSave: @escaping (CaptureDocument) -> Void,
+                    title: String, onCopy: @escaping (CaptureDocument) -> Void, onEdit: @escaping (CaptureDocument) -> Void, onSave: @escaping (CaptureDocument) -> Void,
                     onPin: @escaping (CaptureDocument) -> Void) async throws
     func pin(document: CaptureDocument, backgroundURL: URL?,
-             onEdit: @escaping (CaptureDocument) -> Void, onSave: @escaping (CaptureDocument) -> Void) async throws
+             onCopy: @escaping (CaptureDocument) -> Void, onEdit: @escaping (CaptureDocument) -> Void, onSave: @escaping (CaptureDocument) -> Void) async throws
     func setCaptureHidden(_ hidden: Bool)
     func closeAll()
     func handleMemoryPressure()

@@ -65,7 +65,7 @@ final class OverlayGeometryTests: XCTestCase {
         let layout = OverlayToolbarLayout(screen: screen, topInset: 14, inspectorHeight: 440, hasTextEntry: false, hasStatus: false)
         let frame = layout.frame(near: CGRect(x: 150, y: 90, width: 950, height: 620))
         XCTAssertEqual(layout.inspectorHeight, 440)
-        XCTAssertEqual(frame.height, 539)
+        XCTAssertEqual(frame.height, 528)
         XCTAssertGreaterThanOrEqual(frame.minY, 14)
         XCTAssertLessThanOrEqual(frame.maxY, 786)
     }
@@ -73,7 +73,7 @@ final class OverlayGeometryTests: XCTestCase {
     func testSmallDisplayScrollsInspectorAndRespectsNotchAndManualPosition() {
         let screen = CGSize(width: 800, height: 480)
         let layout = OverlayToolbarLayout(screen: screen, topInset: 40, inspectorHeight: 440, hasTextEntry: true, hasStatus: true)
-        XCTAssertEqual(layout.inspectorHeight, 215)
+        XCTAssertEqual(layout.inspectorHeight, 226)
         for origin in [CGPoint(x: -500, y: -500), CGPoint(x: 2000, y: 2000)] {
             let frame = layout.frame(near: CGRect(origin: .zero, size: screen), manualOrigin: origin)
             XCTAssertGreaterThanOrEqual(frame.minX, 14)
