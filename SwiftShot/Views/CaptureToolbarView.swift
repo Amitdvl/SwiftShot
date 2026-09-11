@@ -7,6 +7,9 @@ struct CaptureToolbarView: View {
 
     var body: some View {
         HStack(spacing: 5) {
+            // Keep the action rail icon-first so the editor can fit the common
+            // actions beside the image at compact sizes. Labels remain exposed
+            // through accessibility and the hover help below.
             tool("Copy", icon: "document.on.document", shortcut: "⌘C", prominent: true) { session.commitStyle(); session.onCopy(document) }
             tool("Save", icon: "square.and.arrow.down", shortcut: "⌘S") { session.commitStyle(); session.onSave(document) }
             Divider().frame(height: 20).padding(.horizontal, 3)
@@ -19,6 +22,7 @@ struct CaptureToolbarView: View {
                 session.commitStyle(); session.cropMode.toggle(); session.annotationTool = nil
                 session.selectedAnnotationID = nil; session.activePopover = nil
             }
+            tool("Pin to Screen", icon: "pin") { session.commitStyle(); session.actions.pin(document) }
             tool("More", icon: "ellipsis", selected: session.activePopover == .more || session.activePopover == .backgrounds) { toggle(.more) }
         }
         .padding(8)
@@ -47,14 +51,9 @@ private struct CaptureToolButton: View {
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            if title == "Copy" || title == "Save" {
-                Label(title, systemImage: icon)
-            } else {
-                Image(systemName: icon).font(.system(size: 16, weight: .medium))
-            }
+            Image(systemName: icon).font(.system(size: 15, weight: .medium))
         }
-        .buttonStyle(CaptureButtonStyle(prominent: prominent, selected: selected,
-                                        compact: title != "Copy" && title != "Save"))
+        .buttonStyle(CaptureButtonStyle(prominent: prominent, selected: selected, compact: true))
         .help(shortcut.map { "\(title) (\($0))" } ?? title)
         .accessibilityLabel(title == "Redact" ? "Redact Screenshot" : title)
         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -145,7 +144,6 @@ struct OverlayInspectorView: View {
                     Button("Copy Smaller") { session.commitStyle(); session.actions.copySmaller(document) }
                     Button("Save Smaller") { session.commitStyle(); session.actions.saveSmaller(document) }
                 }
-                Button("Pin Image", systemImage: "pin") { session.commitStyle(); session.actions.pin(document) }
                 if let renderer = session.actions.dragRenderer {
                     CaptureDragHandle(request: document.request(backgroundURL: session.library.url(for: document.edits.style.backgroundID)),
                         renderer: renderer, onDragBegan: session.actions.dragBegan, onDragEnded: session.actions.dragEnded,

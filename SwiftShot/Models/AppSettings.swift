@@ -21,7 +21,9 @@ struct AppSettings: Codable, Sendable {
     }
     var immediateCopy = false
     var privateCapture = false
-    var showRecentThumbnail = true
+    /// Recent captures stay out of the way until the user explicitly asks for
+    /// a floating result (or pins one from the capture toolbar).
+    var showRecentThumbnail = false
     var historyIndexingEnabled = true
     /// Zero keeps saved captures until explicit deletion. Unsaved/pinned captures are never age-pruned.
     var retentionDays = 0
@@ -43,7 +45,7 @@ struct AppSettings: Codable, Sendable {
         saveDirectory = try container.decodeIfPresent(String.self, forKey: .saveDirectory) ?? Self.default.saveDirectory
         immediateCopy = try container.decodeIfPresent(Bool.self, forKey: .immediateCopy) ?? false
         privateCapture = try container.decodeIfPresent(Bool.self, forKey: .privateCapture) ?? false
-        showRecentThumbnail = try container.decodeIfPresent(Bool.self, forKey: .showRecentThumbnail) ?? true
+        showRecentThumbnail = try container.decodeIfPresent(Bool.self, forKey: .showRecentThumbnail) ?? false
         historyIndexingEnabled = try container.decodeIfPresent(Bool.self, forKey: .historyIndexingEnabled) ?? true
         retentionDays = min(3650, max(0, try container.decodeIfPresent(Int.self, forKey: .retentionDays) ?? 0))
         shareMaxDimension = min(8192, max(320, try container.decodeIfPresent(Int.self, forKey: .shareMaxDimension) ?? 2048))

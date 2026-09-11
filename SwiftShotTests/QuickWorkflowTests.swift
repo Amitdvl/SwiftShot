@@ -2,6 +2,17 @@ import XCTest
 @testable import SwiftShot
 
 final class QuickWorkflowTests: XCTestCase {
+    func testRecentFloatingResultIsOptInByDefault() {
+        XCTAssertFalse(AppSettings.default.showRecentThumbnail,
+                       "A capture must not create floating chrome unless the user enables it or pins it explicitly.")
+    }
+
+    func testRecentFloatingResultPreferenceCanStillBeEnabledExplicitly() throws {
+        let json = #"{"saveDirectory":"/tmp","showRecentThumbnail":true}"#
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+        XCTAssertTrue(settings.showRecentThumbnail)
+    }
+
     // Losing the dedicated quick-copy route forces every raw capture through editing.
     func testDefaultQuickCopyShortcutIsSeparateFromRegion() throws {
         let quick = try XCTUnwrap(ShortcutConfig.defaults.first { $0.mode == "quickCopy" })
