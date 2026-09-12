@@ -8,7 +8,7 @@ The current branch includes deterministic coverage for exact uneven offsets, spa
 
 The final CI gate passed every preflight, diff, shell, benchmark-report, wrapper, project-generation, build, test, and final-diff phase. XCTest executed **388 tests with zero failures** in 68.337 seconds; retained evidence is `build/ci/run.CdE62i`. The Apple Development-signed installed app passed strict deep signature verification and remained launchable. Its executable SHA-256 is `6ffb6b562c0e7a4c39e5e3902f363d1b6058356d258dd15db82358a18509a728`.
 
-Local package: `build/release-artifacts/SwiftShot-scrolling-capture-2026-09-13.zip`. ZIP integrity passed; SHA-256 is `970fa4867da1959c86013408fda443446aea543478683858928c9dbf975f1081`. This is a development-signed local artifact, not a notarized public release. Historical sections after this candidate describe earlier builds; references there to automatic scrolling concern the retired implementation, not the current product.
+Local package: `build/release-artifacts/SwiftShot-scrolling-capture-2026-09-13-final.zip`. ZIP integrity passed; SHA-256 is `5ea45122626769d147101d080bbc4dca0a8d1581b976dbbde61c589b5fc5d8da`. This is a development-signed local artifact, not a notarized public release. Historical sections after this candidate describe earlier builds; references there to automatic scrolling concern the retired implementation, not the current product.
 
 2026-09-11. This is the product finish pass defined in [GOAL.md](GOAL.md), not completion of the old exhaustive certification matrix. All artifacts below are retained locally under `build/goal/` and are not a public notarized release.
 
