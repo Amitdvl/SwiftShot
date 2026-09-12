@@ -10,6 +10,14 @@ The final CI gate passed every preflight, diff, shell, benchmark-report, wrapper
 
 Local package: `build/release-artifacts/SwiftShot-scrolling-capture-2026-09-13-audit-fixed.zip`. ZIP integrity and extracted-bundle strict signature verification passed; SHA-256 is `62f1018cb8d3a2a09e385b39a1417cfb577c4df10aed561e6bb5663933cf4f50`. This is a development-signed local artifact, not a notarized public release. Historical sections after this candidate describe earlier builds; references there to automatic scrolling concern the retired implementation, not the current product.
 
+## 2026-09-13 live Scrolling Capture progress
+
+Scrolling Capture now shows a real-time stitched thumbnail in its nonactivating HUD while the user scrolls. The same compact card reports accepted output as both viewport equivalents and exact pixel height, updates only after a verified append, and exposes full output dimensions through its help and accessibility values. Preview generation samples the accepted composite directly into a fixed **72 × 160 px** maximum envelope, so the interaction does not repeatedly render or copy the full-size output.
+
+Native validation on the installed signed app showed the fixture preview and measurement advancing in place from **1.0 screen · 962 px** to **1.3 screens · 1,282 px**, while Chrome retained focus; Finish opened the resulting capture in the normal editor. The focused Scrolling Capture slice passed **37/37 tests**. The full CI gate passed every phase and executed **397 tests with zero failures**; evidence is `build/ci/run.EtrXpw`. The installed executable passed strict deep signature verification and has SHA-256 `af68a737846f2d50a9f5d3a60473113ece20de7ca4d1b912138c2dcb9740ebd1`.
+
+Local package: `build/release-artifacts/SwiftShot-scrolling-live-preview-2026-09-13.zip`. ZIP integrity passed; SHA-256 is `2cddda45b49db8437b2a02226f70f445c189737e34a70d216797289bc13fc653`. This is a development-signed local artifact, not a notarized public release.
+
 2026-09-11. This is the product finish pass defined in [GOAL.md](GOAL.md), not completion of the old exhaustive certification matrix. All artifacts below are retained locally under `build/goal/` and are not a public notarized release.
 
 **Delivered:** product source commit `f9ea9c958834dac41d3510e43a385918134b712f` was pushed to `origin/main` and verified against the remote ref. The installed app's signature and executable hash were rechecked after publication; it remains running. No new material blocker was found in the bounded finish pass. Documentation-only delivery bookkeeping may follow this product commit without changing the tested binary.

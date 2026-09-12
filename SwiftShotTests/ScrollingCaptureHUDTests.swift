@@ -33,10 +33,10 @@ final class ScrollingCaptureHUDTests: XCTestCase {
     @MainActor
     func testStateCopyIsConciseAndActionable() {
         XCTAssertEqual(ScrollingCaptureHUDState.ready(sectionCount: 1).presentation,
-                       .init(headline: "Scroll the page", detail: "1 section captured", showsProgress: false,
+                       .init(headline: "Keep scrolling", detail: "Preview updates live", showsProgress: false,
                              finishEnabled: true))
         XCTAssertEqual(ScrollingCaptureHUDState.ready(sectionCount: 3).presentation.detail,
-                       "3 sections captured")
+                       "Preview updates live")
         XCTAssertEqual(ScrollingCaptureHUDState.recoverableSeam(sectionCount: 2).presentation,
                        .init(headline: "Scroll a little slower", detail: "The last view didn’t overlap enough.",
                              showsProgress: false, finishEnabled: true))
@@ -45,6 +45,27 @@ final class ScrollingCaptureHUDTests: XCTestCase {
                              finishEnabled: true))
         XCTAssertFalse(ScrollingCaptureHUDState.terminal(reason: "Screen Recording was revoked.", sectionCount: 0)
             .presentation.finishEnabled)
+    }
+
+    @MainActor
+    func testLivePreviewExposesStableCaptureMeasurements() throws {
+        let preview = ScrollingCapturePreview(
+            image: try makeImage(width: 72, height: 127),
+            acceptedFrames: 4,
+            outputWidth: 1_440,
+            outputHeight: 2_544,
+            viewportHeight: 960
+        )
+        let controller = ScrollingCaptureHUDController()
+        controller.show(relativeTo: .zero, in: CGRect(x: 0, y: 0, width: 900, height: 700),
+                        onFinish: {}, onCancel: {})
+        defer { controller.dismiss() }
+
+        controller.update(preview)
+
+        XCTAssertEqual(controller.model?.preview?.outputHeight, 2_544)
+        XCTAssertEqual(preview.extentLabel, "2.7 screens · 2,544 px")
+        XCTAssertEqual(preview.dimensionsLabel, "1,440 × 2,544 px")
     }
 
     @MainActor
@@ -92,8 +113,18 @@ final class ScrollingCaptureHUDTests: XCTestCase {
 
         XCTAssertTrue(visible.insetBy(dx: 8, dy: 8).contains(frame))
         XCTAssertFalse(frame.intersects(selection))
-        XCTAssertLessThanOrEqual(frame.width, 320)
-        XCTAssertLessThanOrEqual(frame.height, 64)
+        XCTAssertLessThanOrEqual(frame.width, 400)
+        XCTAssertLessThanOrEqual(frame.height, 120)
+    }
+
+    private func makeImage(width: Int, height: Int) throws -> CGImage {
+        let bytes = [UInt8](repeating: 127, count: width * height * 4)
+        let provider = try XCTUnwrap(CGDataProvider(data: Data(bytes) as CFData))
+        return try XCTUnwrap(CGImage(width: width, height: height, bitsPerComponent: 8,
+            bitsPerPixel: 32, bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+                .union(.byteOrder32Big), provider: provider, decode: nil, shouldInterpolate: false,
+            intent: .defaultIntent))
     }
 }
 #else
@@ -133,9 +164,9 @@ private enum DirectScrollingCaptureHUDTestRunner {
     @MainActor
     private static func testStateCopyIsConciseAndActionable() {
         check(ScrollingCaptureHUDState.ready(sectionCount: 1).presentation ==
-              .init(headline: "Scroll the page", detail: "1 section captured", showsProgress: false,
+              .init(headline: "Keep scrolling", detail: "Preview updates live", showsProgress: false,
                     finishEnabled: true), "ready copy should match the interaction contract")
-        check(ScrollingCaptureHUDState.ready(sectionCount: 3).presentation.detail == "3 sections captured",
+        check(ScrollingCaptureHUDState.ready(sectionCount: 3).presentation.detail == "Preview updates live",
               "ready copy should pluralize sections")
         check(ScrollingCaptureHUDState.recoverableSeam(sectionCount: 2).presentation ==
               .init(headline: "Scroll a little slower", detail: "The last view didn’t overlap enough.",
@@ -179,7 +210,7 @@ private enum DirectScrollingCaptureHUDTestRunner {
         let frame = ScrollingCaptureHUDPlacement.frame(selected: selection, visible: visible)
         check(visible.insetBy(dx: 8, dy: 8).contains(frame), "HUD should remain on the visible display")
         check(!frame.intersects(selection), "HUD should avoid the captured selection when space exists")
-        check(frame.width <= 320 && frame.height <= 64, "HUD should remain compact")
+        check(frame.width <= 400 && frame.height <= 120, "HUD should remain compact")
     }
 
     private static func check(_ condition: @autoclosure () -> Bool, _ message: String) {

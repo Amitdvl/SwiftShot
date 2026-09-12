@@ -54,9 +54,52 @@ struct ScrollingStitchProgress: Equatable, Sendable {
     let retainedBytes: Int
 }
 
+/// A bounded, already-stitched visual summary for the capture HUD. The image is
+/// sampled directly from verified engine pixels and never persisted.
+struct ScrollingCapturePreview: @unchecked Sendable, Equatable {
+    let image: CGImage
+    let acceptedFrames: Int
+    let outputWidth: Int
+    let outputHeight: Int
+    let viewportHeight: Int
+
+    var screenCount: Double {
+        guard viewportHeight > 0 else { return 0 }
+        return Double(outputHeight) / Double(viewportHeight)
+    }
+
+    var extentLabel: String {
+        let count = (screenCount * 10).rounded() / 10
+        let noun = abs(count - 1) < 0.05 ? "screen" : "screens"
+        return String(format: "%.1f %@ · %@ px", locale: Locale(identifier: "en_US_POSIX"),
+                      count, noun, Self.grouped(outputHeight))
+    }
+
+    var dimensionsLabel: String {
+        "\(Self.grouped(outputWidth)) × \(Self.grouped(outputHeight)) px"
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.acceptedFrames == rhs.acceptedFrames && lhs.outputWidth == rhs.outputWidth &&
+            lhs.outputHeight == rhs.outputHeight && lhs.viewportHeight == rhs.viewportHeight &&
+            lhs.image.width == rhs.image.width && lhs.image.height == rhs.image.height
+    }
+
+    private static func grouped(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = true
+        formatter.groupingSize = 3
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: max(0, value))) ?? String(max(0, value))
+    }
+}
+
 struct ScrollingIngestResult: Equatable, Sendable {
     let disposition: ScrollingIngestDisposition
     let progress: ScrollingStitchProgress
+    let preview: ScrollingCapturePreview?
 }
 
 struct ScrollingStitchArtifact: @unchecked Sendable {

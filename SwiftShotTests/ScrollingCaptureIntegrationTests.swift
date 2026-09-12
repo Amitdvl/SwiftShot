@@ -238,6 +238,7 @@ private final class IntegrationScrollingSource: ScrollingFrameSource {
 private final class IntegrationScrollingHUD: ScrollingCaptureHUDPresenting {
     private(set) var isVisible = false
     private(set) var state: ScrollingCaptureHUDState = .preparing
+    private(set) var preview: ScrollingCapturePreview?
     private var onFinish: (() -> Void)?
     private var onCancel: (() -> Void)?
     func show(relativeTo selectedFrame: CGRect, in visibleFrame: CGRect,
@@ -246,6 +247,7 @@ private final class IntegrationScrollingHUD: ScrollingCaptureHUDPresenting {
         isVisible = true; self.onFinish = onFinish; self.onCancel = onCancel
     }
     func update(_ state: ScrollingCaptureHUDState) { self.state = state }
+    func update(_ preview: ScrollingCapturePreview) { self.preview = preview }
     func dismiss() { isVisible = false; onFinish = nil; onCancel = nil }
     func finish() { onFinish?() }
     func cancel() { onCancel?() }

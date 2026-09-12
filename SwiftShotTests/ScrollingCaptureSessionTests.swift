@@ -24,6 +24,22 @@ final class ScrollingCaptureSessionTests: XCTestCase {
         XCTAssertEqual(session.state, .finished)
     }
 
+    func testAcceptedFramesPublishMeasuredLivePreviewsBeforeFinish() async throws {
+        let source = FakeScrollingFrameSource()
+        let session = ScrollingCaptureSession(source: source)
+        var previews = [ScrollingCapturePreview]()
+
+        try await session.start(for: makeRegion(), onPreviewChange: { previews.append($0) })
+        source.send(try frame(rows: 0..<6))
+        source.send(try frame(rows: 2..<8))
+        await eventually { previews.count == 2 }
+
+        XCTAssertEqual(previews.map(\.outputHeight), [6, 8])
+        XCTAssertEqual(previews.map(\.viewportHeight), [6, 6])
+        XCTAssertEqual(previews.map(\.acceptedFrames), [1, 2])
+        _ = await session.cancel()
+    }
+
     func testOneFrameFinishIsAnIntentionalValidCapture() async throws {
         let source = FakeScrollingFrameSource()
         let session = ScrollingCaptureSession(source: source)

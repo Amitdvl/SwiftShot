@@ -4,6 +4,8 @@ import OSLog
 
 /// Stateful pixel stitcher. Native capture objects and UI state never enter this actor.
 actor ScrollingStitchEngine {
+    private static let previewMaximumWidth = 72
+    private static let previewMaximumHeight = 160
     private let logger = Logger(subsystem: "com.swiftshot.app", category: "ScrollingStitch")
     private struct PixelFrame: Sendable {
         let width: Int
@@ -70,7 +72,7 @@ actor ScrollingStitchEngine {
             body = incoming.rgba
             reference = incoming
             acceptedFrames = 1
-            return result(.firstFrame)
+            return result(.firstFrame, previewViewportHeight: incoming.height)
         }
 
         guard previous.width == width, previous.height == height else {
@@ -115,7 +117,7 @@ actor ScrollingStitchEngine {
             acceptedFrames += 1
             appendedRows += seam.shift
             logger.debug("Appended \(seam.shift, privacy: .public) rows; accepted=\(self.acceptedFrames, privacy: .public)")
-            return result(.appended(rows: seam.shift))
+            return result(.appended(rows: seam.shift), previewViewportHeight: incoming.height)
         }
     }
 
@@ -169,12 +171,69 @@ actor ScrollingStitchEngine {
         return (stickyTop.count + body.count + stickyBottom.count) / (reference.width * 4)
     }
 
-    private func result(_ disposition: ScrollingIngestDisposition) -> ScrollingIngestResult {
+    private func result(_ disposition: ScrollingIngestDisposition,
+                        previewViewportHeight: Int? = nil) -> ScrollingIngestResult {
         ScrollingIngestResult(disposition: disposition, progress: ScrollingStitchProgress(
             acceptedFrames: acceptedFrames,
             outputWidth: reference?.width ?? 0,
             outputHeight: currentOutputHeight,
-            retainedBytes: retainedBytes))
+            retainedBytes: retainedBytes),
+            preview: previewViewportHeight.flatMap { makePreview(viewportHeight: $0) })
+    }
+
+    /// Samples the accepted composite into a tiny fixed envelope. This avoids a
+    /// full-size render/copy on every scroll while still showing the real seams
+    /// and total aspect ratio before Finish.
+    private func makePreview(viewportHeight: Int) -> ScrollingCapturePreview? {
+        guard let reference, reference.width > 0, currentOutputHeight > 0 else { return nil }
+        let sourceWidth = reference.width
+        let sourceHeight = currentOutputHeight
+        let scale = min(1, min(Double(Self.previewMaximumWidth) / Double(sourceWidth),
+                               Double(Self.previewMaximumHeight) / Double(sourceHeight)))
+        let width = max(1, Int((Double(sourceWidth) * scale).rounded(.down)))
+        let height = max(1, Int((Double(sourceHeight) * scale).rounded(.down)))
+        guard let byteCount = Self.safeProduct(width, height, 4) else { return nil }
+        var pixels = [UInt8](repeating: 0, count: byteCount)
+
+        for destinationY in 0..<height {
+            let sourceY = min(sourceHeight - 1, destinationY * sourceHeight / height)
+            for destinationX in 0..<width {
+                let sourceX = min(sourceWidth - 1, destinationX * sourceWidth / width)
+                let destination = (destinationY * width + destinationX) * 4
+                for channel in 0..<4 {
+                    pixels[destination + channel] = compositeByte(
+                        x: sourceX, y: sourceY, channel: channel, width: sourceWidth)
+                }
+            }
+        }
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData),
+              let image = CGImage(width: width, height: height, bitsPerComponent: 8,
+                bitsPerPixel: 32, bytesPerRow: width * 4,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+                    .union(.byteOrder32Big), provider: provider, decode: nil,
+                shouldInterpolate: false, intent: .defaultIntent) else { return nil }
+        return ScrollingCapturePreview(image: image, acceptedFrames: acceptedFrames,
+            outputWidth: sourceWidth, outputHeight: sourceHeight, viewportHeight: viewportHeight)
+    }
+
+    private func compositeByte(x: Int, y: Int, channel: Int, width: Int) -> UInt8 {
+        let rowBytes = width * 4
+        let topRows = stickyTop.count / rowBytes
+        let bodyRows = body.count / rowBytes
+        let component: [UInt8]
+        let localY: Int
+        if y < topRows {
+            component = stickyTop
+            localY = y
+        } else if y < topRows + bodyRows {
+            component = body
+            localY = y - topRows
+        } else {
+            component = stickyBottom
+            localY = y - topRows - bodyRows
+        }
+        return component[(localY * width + x) * 4 + channel]
     }
 
     private var retainedBytes: Int {

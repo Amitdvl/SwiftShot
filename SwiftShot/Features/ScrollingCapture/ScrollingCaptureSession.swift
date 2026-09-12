@@ -42,6 +42,7 @@ final class ScrollingCaptureSession {
     private var terminalError: ScrollingCaptureSessionError?
     private var latestProgress = ScrollingStitchProgress(acceptedFrames: 0, outputWidth: 0,
                                                          outputHeight: 0, retainedBytes: 0)
+    private var onPreviewChange: ((ScrollingCapturePreview) -> Void)?
     private var onStateChange: ((ScrollingCaptureSessionState) -> Void)?
     private(set) var state: ScrollingCaptureSessionState = .idle {
         didSet { onStateChange?(state) }
@@ -54,8 +55,10 @@ final class ScrollingCaptureSession {
     }
 
     func start(for region: CaptureRegionReference,
+               onPreviewChange: ((ScrollingCapturePreview) -> Void)? = nil,
                onStateChange: ((ScrollingCaptureSessionState) -> Void)? = nil) async throws {
         guard state == .idle else { throw ScrollingCaptureSessionError.invalidState }
+        self.onPreviewChange = onPreviewChange
         self.onStateChange = onStateChange
         state = .starting
         do {
@@ -72,6 +75,7 @@ final class ScrollingCaptureSession {
                         let result = try await self.engine.ingest(frame)
                         guard case .capturing = self.state else { continue }
                         self.latestProgress = result.progress
+                        if let preview = result.preview { self.onPreviewChange?(preview) }
                         self.state = .capturing(result.progress, result.disposition)
                     }
                     if case .capturing = self.state {

@@ -342,7 +342,11 @@ final class AppState {
             onCancel: { [weak self] in Task { await self?.cancelScrollingCapture(token: token) } })
         scrollingHUD.update(.preparing)
         do {
-            try await session.start(for: region) { [weak self, weak session] state in
+            try await session.start(for: region, onPreviewChange: { [weak self, weak session] preview in
+                guard let self, let session, self.scrollingCaptureSession === session,
+                      self.sessionID == token else { return }
+                self.scrollingHUD.update(preview)
+            }) { [weak self, weak session] state in
                 guard let self, let session, self.scrollingCaptureSession === session,
                       self.sessionID == token else { return }
                 self.updateScrollingHUD(for: state)

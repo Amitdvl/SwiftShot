@@ -21,6 +21,42 @@ final class ScrollingStitchEngineTests: XCTestCase {
         XCTAssertEqual(try pixels(artifact.image), try pixels(source))
     }
 
+    func testLivePreviewShowsTheVerifiedCompositeBeforeFinishAndStaysBounded() async throws {
+        let rows = documentRows(0..<11, width: 7)
+        let engine = ScrollingStitchEngine()
+
+        let first = try await engine.ingest(frame(try image(rows: Array(rows[0..<6]), width: 7)))
+        let second = try await engine.ingest(frame(try image(rows: Array(rows[2..<8]), width: 7)))
+
+        let firstPreview = try XCTUnwrap(first.preview)
+        XCTAssertEqual(firstPreview.outputWidth, 7)
+        XCTAssertEqual(firstPreview.outputHeight, 6)
+        XCTAssertEqual(firstPreview.viewportHeight, 6)
+        XCTAssertEqual(try pixels(firstPreview.image),
+                       try pixels(image(rows: Array(rows[0..<6]), width: 7)))
+
+        let secondPreview = try XCTUnwrap(second.preview)
+        XCTAssertEqual(secondPreview.outputWidth, 7)
+        XCTAssertEqual(secondPreview.outputHeight, 8)
+        XCTAssertEqual(secondPreview.viewportHeight, 6)
+        XCTAssertEqual(try pixels(secondPreview.image),
+                       try pixels(image(rows: Array(rows[0..<8]), width: 7)))
+        XCTAssertLessThanOrEqual(secondPreview.image.width, 72)
+        XCTAssertLessThanOrEqual(secondPreview.image.height, 160)
+    }
+
+    func testRejectedAndUnchangedFramesDoNotPublishAFalsePreviewUpdate() async throws {
+        let source = try image(rows: documentRows(0..<6, width: 6), width: 6)
+        let engine = ScrollingStitchEngine()
+        let first = try await engine.ingest(frame(source))
+        XCTAssertNotNil(first.preview)
+
+        let unchanged = try await engine.ingest(frame(source))
+
+        XCTAssertEqual(unchanged.disposition, .unchanged)
+        XCTAssertNil(unchanged.preview)
+    }
+
     func testArbitraryDownwardOffsetsAppendOnlyNewRowsWithExactFinalPixels() async throws {
         let rows = documentRows(0..<11, width: 7)
         let engine = ScrollingStitchEngine()
