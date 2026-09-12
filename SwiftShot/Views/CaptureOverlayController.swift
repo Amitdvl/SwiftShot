@@ -107,6 +107,7 @@ final class CaptureOverlayController: CapturePresenting {
 
     private func configureSessionActions(_ session: OverlaySession) {
         session.actions = actions
+        session.selectionPurpose = actions.selectionPurpose
         session.latencyTraceRunID = actions.latencyTraceRunID
         let onBegan = actions.dragBegan
         session.actions.dragBegan = { [weak self, weak session] in
@@ -164,6 +165,14 @@ final class OverlaySession {
     }
     var actions = CaptureActions()
     var selectedAnnotationID: UUID?
+    var selectionPurpose: CaptureSelectionPurpose = .standard
+    var selectionTitle: String {
+        selectionPurpose == .scrolling ? "Select the scrolling area" : mode == .window ? "Choose a window" : "Drag to capture"
+    }
+    var selectionGuidance: String {
+        selectionPurpose == .scrolling ? "Drag around the visible content · Esc cancels" :
+            "Screen frozen · Space switches mode or moves a drag · Shift constrains · Esc cancels"
+    }
     var spaceHeld = false
     var shiftHeld = false
     var isDragging = false
@@ -174,6 +183,10 @@ final class OverlaySession {
     func handleKey(code: UInt16, characters: String?, modifiers: NSEvent.ModifierFlags, isTextEditing: Bool, isKeyUp: Bool) -> Bool {
         guard !isTextEditing else { return false }
         if code == 49 {
+            guard selectionPurpose == .standard else {
+                spaceHeld = false
+                return true
+            }
             spaceHeld = !isKeyUp
             if !isKeyUp && !isDragging && document == nil { actions.switchMode(mode == .window ? .region : .window) }
             return true
@@ -273,6 +286,14 @@ final class OverlaySession {
         let traceRunID = latencyTraceRunID
         actions.selectionCommitted?()
         CaptureLatencyTrace.shared.mark(.selectionCommitted, for: traceRunID)
+        if selectionPurpose == .scrolling {
+            imagePlacement = nil
+            activeScreenID = screen.id
+            status = ""
+            actions.selectedRegion(screen, crop)
+            CaptureLatencyTrace.shared.mark(.selectionCallbacksFinished, for: traceRunID)
+            return
+        }
         let document = CaptureDocument(image: screen.image, edits: CaptureEdits(crop: crop, style: initialStyle))
         imagePlacement = nil
         activeScreenID = screen.id

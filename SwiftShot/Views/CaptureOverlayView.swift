@@ -239,7 +239,9 @@ struct CaptureOverlayView: View {
                 case .ended: pointer = nil; hoveredWindow = nil; NSCursor.arrow.set()
                 }
             }
-            .accessibilityLabel(document == nil ? (screen.isLive ? "Live windows. Click to capture now." : "Frozen screen. Drag to select a region.") : "Screenshot canvas")
+            .accessibilityLabel(document == nil ? (session.selectionPurpose == .scrolling ?
+                "Frozen screen. Drag to select the scrolling area." :
+                (screen.isLive ? "Live windows. Click to capture now." : "Frozen screen. Drag to select a region.")) : "Screenshot canvas")
     }
 
     private func annotationChrome(_ annotation: CaptureAnnotation) -> some View {
@@ -302,12 +304,13 @@ struct CaptureOverlayView: View {
         HStack(spacing: 12) {
             Image(systemName: session.mode == .window ? "macwindow" : "viewfinder").font(.title3)
             VStack(alignment: .leading, spacing: 3) {
-                Text(session.document == nil ? (session.mode == .window ? "Choose a window" : "Drag to capture")
+                Text(session.document == nil ? session.selectionTitle
                      : "Editing on another display").font(.system(size: 13, weight: .semibold))
-                Text(session.status.isEmpty ? (screen.isLive ? "Live selector · Captured at click · Space for Region · Esc cancels" : "Screen frozen · Space switches mode or moves a drag · Shift constrains · Esc cancels") : session.status)
+                Text(session.status.isEmpty ? (session.selectionPurpose == .scrolling ? session.selectionGuidance :
+                    (screen.isLive ? "Live selector · Captured at click · Space for Region · Esc cancels" : session.selectionGuidance)) : session.status)
                     .font(.system(size: 11)).foregroundStyle(.secondary)
             }
-            if screen.isLive {
+            if screen.isLive && session.selectionPurpose == .standard {
                 Button("Refresh Windows") { session.actions.switchMode(.window) }
                     .buttonStyle(CaptureButtonStyle()).controlSize(.small)
             }

@@ -69,6 +69,47 @@ final class OverlayInteractionTests: XCTestCase {
         XCTAssertEqual(session.annotationTool, .arrow)
     }
 
+    func testScrollingSelectionConsumesSpaceWithoutChangingCaptureMode() {
+        let session = makeSession()
+        session.selectionPurpose = .scrolling
+        var chosen: CaptureMode?
+        session.actions.switchMode = { chosen = $0 }
+
+        XCTAssertTrue(session.handleKey(code: 49, characters: " ", modifiers: [], isTextEditing: false, isKeyUp: false))
+
+        XCTAssertNil(chosen, "Scrolling selection must not advertise or enter Window capture")
+        XCTAssertFalse(session.spaceHeld)
+    }
+
+    func testScrollingSelectionHandsOffRegionWithoutCreatingFrozenDocument() throws {
+        var documents: [CaptureDocument] = []
+        var selected: (UInt32, CGRect)?
+        let session = OverlaySession(mode: .region, style: CaptureStyle(), library: BackgroundLibrary(),
+            onDocument: { documents.append($0) }, onCopy: { _ in }, onSave: { _ in }, onOCR: { _ in }, onCancel: {})
+        session.selectionPurpose = .scrolling
+        session.actions.selectedRegion = { screen, crop in selected = (screen.id, crop) }
+        let image = try XCTUnwrap(CGContext(data: nil, width: 100, height: 80, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?.makeImage())
+        let screen = FrozenScreen(id: 42, frame: CGRect(x: 0, y: 0, width: 100, height: 80), image: image, windows: [])
+        let crop = CGRect(x: 10, y: 12, width: 60, height: 48)
+
+        session.select(screen: screen, crop: crop)
+
+        XCTAssertNil(session.document, "The frozen selector frame must never become scrolling output")
+        XCTAssertTrue(documents.isEmpty)
+        XCTAssertEqual(selected?.0, 42)
+        XCTAssertEqual(selected?.1, crop)
+    }
+
+    func testScrollingSelectionGuidanceContainsNoDeadModeSwitchInstruction() {
+        let session = makeSession()
+        session.selectionPurpose = .scrolling
+
+        XCTAssertEqual(session.selectionTitle, "Select the scrolling area")
+        XCTAssertEqual(session.selectionGuidance, "Drag around the visible content · Esc cancels")
+        XCTAssertFalse(session.selectionGuidance.contains("Space"))
+    }
+
     func testPrecisionNudgeAndDeleteAreUndoable() throws {
         let session = makeSession()
         let image = try XCTUnwrap(CGContext(data: nil, width: 100, height: 100, bitsPerComponent: 8, bytesPerRow: 0,

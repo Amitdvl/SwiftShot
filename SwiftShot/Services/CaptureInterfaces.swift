@@ -54,6 +54,11 @@ protocol TextRecognizing: Sendable {
     func recognizeText(in image: CGImage) async throws -> String
 }
 
+enum CaptureSelectionPurpose: Sendable {
+    case standard
+    case scrolling
+}
+
 /// Separates interaction lifetime from asynchronous capture/export work.
 @MainActor
 struct CaptureActions {
@@ -72,6 +77,7 @@ struct CaptureActions {
     var selectorPresented: (() -> Void)? = nil
     var selectionCommitted: (() -> Void)? = nil
     var editorPresented: (() -> Void)? = nil
+    var selectionPurpose: CaptureSelectionPurpose = .standard
 }
 
 @MainActor
