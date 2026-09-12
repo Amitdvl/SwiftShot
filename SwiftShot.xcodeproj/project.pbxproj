@@ -108,7 +108,6 @@
 		DFCD824E918710C3E4D6CF62 /* NativeScrollWheelDeliveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AE100E700995A634D9DED60 /* NativeScrollWheelDeliveryTests.swift */; };
 		E0C822BAD0D586A01FE615A2 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E055FF653694B18FB67415 /* NotificationService.swift */; };
 		E581F531DAC122869C22E16E /* CaptureFocusTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6963D73990B636E964E6BC57 /* CaptureFocusTrackerTests.swift */; };
-		E5E7BE60F04AF05D04D6BE18 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F5BAEDD7695D4F2AD69695 /* MenuBarView.swift */; };
 		E658340E8598D57832B7E9C5 /* CaptureWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8CAFE43CF30CD2D789FD593 /* CaptureWorkflowTests.swift */; };
 		E8DD7764295329AE33BF84C3 /* ExportContainerPrivacyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51C566677D917656007F077C /* ExportContainerPrivacyTests.swift */; };
 		EC51DDFF9CA54CE24CC9484C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 06298C2B4F4E32E641DC8AA2 /* Assets.xcassets */; };
@@ -201,7 +200,6 @@
 		942E319AC87407E8EB04C089 /* CaptureSessionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSessionCoordinator.swift; sourceTree = "<group>"; };
 		95104F85662EB0BF75F83CEA /* CaptureExportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureExportCoordinator.swift; sourceTree = "<group>"; };
 		97B48D5EBCF7BF5F77CF70DF /* HistoryWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryWindowController.swift; sourceTree = "<group>"; };
-		99F5BAEDD7695D4F2AD69695 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		9CA433BDE75436890C13DBCE /* OCRService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRService.swift; sourceTree = "<group>"; };
 		9EFA5770EB3C6F9FA238B254 /* FolderNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderNavigationTests.swift; sourceTree = "<group>"; };
 		A4CC7BD1F8DFB549371AAD78 /* AsyncWorkflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsyncWorkflowTests.swift; sourceTree = "<group>"; };
@@ -421,7 +419,6 @@
 				0BA8843AE228A0198F060AA5 /* CaptureOverlayView.swift */,
 				2DE9A84E02F480FE3E6D36CF /* CapturePresentationObserver.swift */,
 				77B889DC1F26078A478E9450 /* CaptureToolbarView.swift */,
-				99F5BAEDD7695D4F2AD69695 /* MenuBarView.swift */,
 				F6791D6EBC13F1705534379C /* PerformanceDiagnosticsView.swift */,
 				BE8397E5F6FA68AD5F110155 /* PreferencesView.swift */,
 				ACAA5CE2BC749223030AF1CA /* ScrollCaptureController.swift */,
@@ -638,7 +635,6 @@
 				15C658050C1F7148C1DB3BF0 /* HistoryIndexingCoordinator.swift in Sources */,
 				22373AB6E85E4EDF7E13E1F2 /* HistoryWindowController.swift in Sources */,
 				AE12162EEE9718B23B27326A /* ImageRenderer.swift in Sources */,
-				E5E7BE60F04AF05D04D6BE18 /* MenuBarView.swift in Sources */,
 				B5767FE2C7E68103A375AD0C /* NativeScrollCaptureDriver.swift in Sources */,
 				E0C822BAD0D586A01FE615A2 /* NotificationService.swift in Sources */,
 				FE282B16746BC3BC000C85DD /* OCRService.swift in Sources */,

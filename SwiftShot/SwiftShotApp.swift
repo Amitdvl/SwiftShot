@@ -14,9 +14,9 @@ struct SwiftShotApp: App {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
-    private var statusPopover: NSPopover?
+    private var statusMenu: NSMenu?
     private let logger = Logger(subsystem: "com.swiftshot.app", category: "StatusItem")
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -71,29 +71,93 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.image?.isTemplate = true
         button.imageScaling = .scaleProportionallyDown
         button.toolTip = "SwiftShot"
-        button.target = self
-        button.action = #selector(toggleStatusPopover(_:))
+        let menu = NSMenu(title: "SwiftShot")
+        menu.autoenablesItems = false
+        menu.delegate = self
+        statusMenu = menu
+        item.menu = menu
+        rebuildStatusMenu(menu)
         item.isVisible = true
         logger.info("Installed status item; visible=\(item.isVisible, privacy: .public)")
     }
 
-    @objc private func toggleStatusPopover(_ sender: Any?) {
-        guard let button = statusItem?.button else { return }
-        if let statusPopover, statusPopover.isShown {
-            statusPopover.performClose(sender)
-            return
-        }
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        rebuildStatusMenu(menu)
+    }
 
-        let popover = NSPopover()
-        popover.behavior = .transient
-        popover.contentSize = NSSize(width: 320, height: 348)
-        popover.contentViewController = NSHostingController(
-            rootView: MenuBarView()
-                .environment(AppState.shared)
-                .frame(width: 320)
-        )
-        statusPopover = popover
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+    private func rebuildStatusMenu(_ menu: NSMenu) {
+        menu.removeAllItems()
+
+        let title = NSMenuItem(title: "SwiftShot", action: nil, keyEquivalent: "")
+        title.isEnabled = false
+        menu.addItem(title)
+        menu.addItem(.separator())
+
+        menu.addItem(actionItem("Capture Region", action: #selector(captureRegion(_:)), keyEquivalent: "2", modifiers: [.command, .shift]))
+        menu.addItem(actionItem("Capture Window", action: #selector(captureWindow(_:))))
+        menu.addItem(actionItem("Capture Fullscreen", action: #selector(captureFullscreen(_:))))
+
+        let more = NSMenuItem(title: "More Capture Options", action: nil, keyEquivalent: "")
+        let moreMenu = NSMenu(title: "More Capture Options")
+        moreMenu.autoenablesItems = false
+        moreMenu.addItem(actionItem("Copy Text from Screen", action: #selector(captureText(_:))))
+        moreMenu.addItem(actionItem("Scrolling Capture…", action: #selector(captureScrolling(_:))))
+        let recapture = actionItem("Recapture Last Region", action: #selector(recaptureLastRegion(_:)))
+        recapture.isEnabled = AppState.shared.lastRegion != nil && !AppState.shared.isCapturing
+        moreMenu.addItem(recapture)
+        more.submenu = moreMenu
+        more.isEnabled = !AppState.shared.isCapturing
+        menu.addItem(more)
+
+        menu.addItem(.separator())
+        menu.addItem(actionItem("Settings…", action: #selector(showPreferences(_:)), keyEquivalent: ",", modifiers: [.command]))
+        menu.addItem(.separator())
+        menu.addItem(actionItem("Quit SwiftShot", action: #selector(quit(_:)), keyEquivalent: "q", modifiers: [.command]))
+    }
+
+    private func actionItem(
+        _ title: String,
+        action: Selector,
+        keyEquivalent: String = "",
+        modifiers: NSEvent.ModifierFlags = []
+    ) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
+        item.keyEquivalentModifierMask = modifiers
+        item.target = self
+        item.isEnabled = !AppState.shared.isCapturing
+        return item
+    }
+
+    @objc private func captureRegion(_ sender: Any?) {
+        Task { _ = await AppState.shared.capture(mode: .region) }
+    }
+
+    @objc private func captureWindow(_ sender: Any?) {
+        Task { _ = await AppState.shared.capture(mode: .window) }
+    }
+
+    @objc private func captureFullscreen(_ sender: Any?) {
+        Task { _ = await AppState.shared.capture(mode: .fullscreen) }
+    }
+
+    @objc private func captureText(_ sender: Any?) {
+        Task { _ = await AppState.shared.capture(mode: .ocr) }
+    }
+
+    @objc private func captureScrolling(_ sender: Any?) {
+        Task { _ = await AppState.shared.capture(mode: .region, scrollingCapture: true) }
+    }
+
+    @objc private func recaptureLastRegion(_ sender: Any?) {
+        Task { await AppState.shared.captureLastRegion() }
+    }
+
+    @objc private func showPreferences(_ sender: Any?) {
+        AppState.shared.showPreferences()
+    }
+
+    @objc private func quit(_ sender: Any?) {
+        NSApp.terminate(nil)
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
