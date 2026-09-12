@@ -30,7 +30,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // available after launch.
         ProcessInfo.processInfo.automaticTerminationSupportEnabled = true
         ProcessInfo.processInfo.disableAutomaticTermination("SwiftShot menu bar app")
-        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            // LSUIElement is correct for the installed app, but the XCTest host
+            // needs normal activation so its real AppKit windows remain testable.
+            NSApp.setActivationPolicy(.regular)
+            return
+        }
         installStatusItem()
         AppState.shared.start()
     }
