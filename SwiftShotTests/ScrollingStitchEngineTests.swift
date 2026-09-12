@@ -61,6 +61,26 @@ final class ScrollingStitchEngineTests: XCTestCase {
         XCTAssertEqual(result.progress.outputHeight, 8)
     }
 
+    func testPeriodicDynamicRowsDoNotHideAnOtherwiseConfidentSeam() async throws {
+        let width = 128
+        let viewportHeight = 480
+        let shift = 40
+        let rows = documentRows(0..<(viewportHeight + shift), width: width)
+        let engine = ScrollingStitchEngine()
+        _ = try await engine.ingest(frame(try image(
+            rows: Array(rows[0..<viewportHeight]), width: width)))
+        var nextRows = Array(rows[shift..<(viewportHeight + shift)])
+        for row in stride(from: 0, to: viewportHeight - shift, by: 9) {
+            for byte in nextRows[row].indices where byte % 4 != 3 {
+                nextRows[row][byte] = UInt8(clamping: Int(nextRows[row][byte]) + 40)
+            }
+        }
+
+        let result = try await engine.ingest(frame(try image(rows: nextRows, width: width)))
+
+        XCTAssertEqual(result.disposition, .appended(rows: shift))
+    }
+
     func testSparseRepeatedPageUsesNarrowUniqueMarkersToDisambiguateTheSeam() async throws {
         let width = 1_440
         let viewportHeight = 960
