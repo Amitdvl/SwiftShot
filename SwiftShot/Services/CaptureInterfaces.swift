@@ -54,7 +54,7 @@ protocol TextRecognizing: Sendable {
     func recognizeText(in image: CGImage) async throws -> String
 }
 
-enum CaptureSelectionPurpose: Sendable {
+enum CaptureSelectionPurpose: Equatable, Sendable {
     case standard
     case scrolling
 }

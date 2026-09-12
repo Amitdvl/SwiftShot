@@ -6,9 +6,9 @@ import OSLog
 @MainActor @Observable
 final class AppState {
     static let shared = AppState()
-    enum Phase: String { case idle, freezing, editing }
+    enum Phase: String { case idle, freezing, scrolling, editing }
     private(set) var phase: Phase = .idle
-    var isCapturing: Bool { phase == .freezing }
+    var isCapturing: Bool { phase == .freezing || phase == .scrolling }
     var appSettings: AppSettings
     var statusMessage: String?
     var shortcutErrors: [String: String] = [:]
@@ -36,6 +36,8 @@ final class AppState {
     /// shipped app keeps unsaved captures session-only.
     private let persistUnsavedCaptures: Bool
     private let overlay: any CapturePresenting
+    private let scrollingFrameSourceFactory: @MainActor () -> any ScrollingFrameSource
+    private let scrollingHUD: any ScrollingCaptureHUDPresenting
     private let diagnostics: PerformanceDiagnostics?
     private let focusTracker = CaptureFocusTracker()
     private var preferencesWindow: NSWindow?
@@ -82,6 +84,9 @@ final class AppState {
     }
     private var lifecycleObservers: [NSObjectProtocol] = []
     private var memoryPressureSource: DispatchSourceMemoryPressure?
+    private var scrollingCaptureSession: ScrollingCaptureSession?
+    private var scrollingRegion: CaptureRegionReference?
+    private var scrollingAcceptedFrames = 0
     private(set) var lastRegion: CaptureRegionReference?
     private let logger = Logger(subsystem: "com.swiftshot.app", category: "Workflow")
 
@@ -97,7 +102,11 @@ final class AppState {
          recoveryCoordinator: RecoveryCoordinator? = nil,
          indexingCoordinator: HistoryIndexingCoordinator? = nil,
          floatingCaptures: (any FloatingCapturePresenting)? = nil,
-         historyWindow: HistoryWindowController? = nil) {
+         historyWindow: HistoryWindowController? = nil,
+         scrollingFrameSourceFactory: @escaping @MainActor () -> any ScrollingFrameSource = {
+             ScreenCaptureKitScrollingFrameSource()
+         },
+         scrollingHUD: any ScrollingCaptureHUDPresenting = ScrollingCaptureHUDController()) {
         self.defaults = defaults
         self.recovery = recovery
         self.recoveryCoordinator = recoveryCoordinator ?? RecoveryCoordinator(store: recovery)
@@ -111,6 +120,8 @@ final class AppState {
         self.renderer = renderer
         self.textRecognizer = textRecognizer
         self.overlay = overlay
+        self.scrollingFrameSourceFactory = scrollingFrameSourceFactory
+        self.scrollingHUD = scrollingHUD
         self.diagnostics = diagnostics
         self.directoryPicker = directoryPicker
         self.floatingCaptures = floatingCaptures ?? FloatingCaptureController(renderer: renderer)
@@ -150,14 +161,31 @@ final class AppState {
     @discardableResult
     func capture(mode: CaptureMode, quickCopy: Bool = false, privateCapture: Bool? = nil,
                  respectImmediatePreference: Bool = true) async -> Bool {
-        guard phase != .freezing, !isQuitting, !Task.isCancelled else { return false }
+        await beginCapture(mode: mode, quickCopy: quickCopy, privateCapture: privateCapture,
+                           respectImmediatePreference: respectImmediatePreference,
+                           selectionPurpose: .standard)
+    }
+
+    /// Starts a passive scrolling capture: select once, then scroll naturally.
+    @discardableResult
+    func startScrollingCapture() async -> Bool {
+        await beginCapture(mode: .region, quickCopy: false, privateCapture: nil,
+                           respectImmediatePreference: false, selectionPurpose: .scrolling)
+    }
+
+    private func beginCapture(mode: CaptureMode, quickCopy: Bool, privateCapture: Bool?,
+                              respectImmediatePreference: Bool,
+                              selectionPurpose: CaptureSelectionPurpose) async -> Bool {
+        guard !isCapturing, !isQuitting, !Task.isCancelled else { return false }
         let performanceRun = diagnostics?.activeRunID
         diagnostics?.mark(.captureRequested, for: performanceRun)
         CaptureLatencyTrace.shared.mark(.captureRequested, for: performanceRun)
         let returnApplication = focusTracker.destination()
-        let copyImmediately = mode != .ocr && (quickCopy || (respectImmediatePreference && appSettings.immediateCopy))
+        let copyImmediately = selectionPurpose == .standard && mode != .ocr &&
+            (quickCopy || (respectImmediatePreference && appSettings.immediateCopy))
         let privateForSession = privateCapture ?? appSettings.privateCapture
-        let workflow: CaptureWorkflow = copyImmediately ? .quickCopy : CaptureWorkflow(rawValue: mode.rawValue) ?? .region
+        let workflow: CaptureWorkflow = selectionPurpose == .scrolling ? .scroll :
+            (copyImmediately ? .quickCopy : CaptureWorkflow(rawValue: mode.rawValue) ?? .region)
         let style = appSettings.style(for: workflow)
         phase = .freezing
         let token = beginSession()
@@ -218,7 +246,7 @@ final class AppState {
             try Task.checkCancellation()
             CaptureLatencyTrace.shared.mark(.freezeReturned, for: performanceRun)
             guard sessionID == token else { return false }
-            phase = .editing
+            phase = selectionPurpose == .scrolling ? .scrolling : .editing
             statusMessage = nil
             overlay.configure(actions: CaptureActions(
                 latencyTraceRunID: performanceRun,
@@ -237,6 +265,11 @@ final class AppState {
                     self.lastRegion = region
                     self.appSettings.lastRegion = region.isPrivate ? nil : region
                     self.saveSettings()
+                    if selectionPurpose == .scrolling {
+                        self.overlay.dismiss()
+                        Task { await self.beginScrollingSession(region: region, style: style, token: token,
+                                                                performanceRun: performanceRun) }
+                    }
                 },
                 pin: { [weak self] document in Task { await self?.pin(document) } },
                 copySmaller: { [weak self] document in Task { await self?.copy(document, smaller: true) } },
@@ -249,14 +282,17 @@ final class AppState {
                 returnApplication: returnApplication,
                 selectorPresented: performanceCallback(.selectorReady, run: performanceRun),
                 selectionCommitted: performanceCallback(.selectionCommitted, run: performanceRun),
-                editorPresented: performanceCallback(.editorReady, run: performanceRun)))
+                editorPresented: performanceCallback(.editorReady, run: performanceRun),
+                selectionPurpose: selectionPurpose))
             CaptureLatencyTrace.shared.mark(.overlayPresentationStarted, for: performanceRun)
             overlay.present(screens: screens, mode: mode, style: style, library: backgrounds,
                 onDocument: { [weak self] document in
                     guard let self, self.sessionID == token else { return }
                     document.performanceRunID = performanceRun
                     self.diagnostics?.updatePixels(input: .init(width: Int(document.edits.crop.width), height: Int(document.edits.crop.height)), for: performanceRun)
-                    if mode == .region, document.sourceRegion == nil { document.sourceRegion = self.lastRegion }
+                    if selectionPurpose == .standard, mode == .region, document.sourceRegion == nil {
+                        document.sourceRegion = self.lastRegion
+                    }
                     self.documentChanged(document, immediate: copyImmediately, privateCapture: privateForSession, workflow: workflow)
                 },
                 onCopy: { [weak self] document in Task { await self?.copy(document) } },
@@ -283,6 +319,99 @@ final class AppState {
             }, openSettings: openSettings)
             return false
         }
+    }
+
+    private func beginScrollingSession(region: CaptureRegionReference, style: CaptureStyle,
+                                       token: UUID, performanceRun: UUID?) async {
+        guard token == sessionID, phase == .scrolling, scrollingCaptureSession == nil else { return }
+        scrollingRegion = region
+        scrollingAcceptedFrames = 0
+        let session = ScrollingCaptureSession(source: scrollingFrameSourceFactory())
+        scrollingCaptureSession = session
+        let selectedFrame = CGRect(x: region.displayFrame.minX + region.rect.minX,
+            y: region.displayFrame.maxY - region.rect.maxY,
+            width: region.rect.width, height: region.rect.height)
+        let visibleFrame = NSScreen.screens.first {
+            ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == region.displayID
+        }?.visibleFrame ?? region.displayFrame
+        scrollingHUD.show(relativeTo: selectedFrame, in: visibleFrame,
+            onFinish: { [weak self] in Task { await self?.finishScrollingCapture(token: token, style: style,
+                                                                                 performanceRun: performanceRun) } },
+            onCancel: { [weak self] in Task { await self?.cancelScrollingCapture(token: token) } })
+        scrollingHUD.update(.preparing)
+        do {
+            try await session.start(for: region) { [weak self, weak session] state in
+                guard let self, let session, self.scrollingCaptureSession === session,
+                      self.sessionID == token else { return }
+                self.updateScrollingHUD(for: state)
+            }
+        } catch {
+            guard scrollingCaptureSession === session, sessionID == token else { return }
+            scrollingHUD.update(.terminal(reason: error.localizedDescription, sectionCount: 0))
+            report(error.localizedDescription)
+        }
+    }
+
+    private func updateScrollingHUD(for state: ScrollingCaptureSessionState) {
+        switch state {
+        case .idle, .starting:
+            scrollingHUD.update(.preparing)
+        case let .capturing(progress, disposition):
+            scrollingAcceptedFrames = progress.acceptedFrames
+            if progress.acceptedFrames == 0 {
+                scrollingHUD.update(.preparing)
+            } else if case .rejected = disposition {
+                scrollingHUD.update(.recoverableSeam(sectionCount: progress.acceptedFrames))
+            } else {
+                scrollingHUD.update(.ready(sectionCount: progress.acceptedFrames))
+            }
+        case .finishing:
+            scrollingHUD.update(.finishing(sectionCount: scrollingAcceptedFrames))
+        case let .failed(message):
+            scrollingHUD.update(.terminal(reason: message, sectionCount: scrollingAcceptedFrames))
+        case .finished, .cancelled:
+            break
+        }
+    }
+
+    private func finishScrollingCapture(token: UUID, style: CaptureStyle,
+                                        performanceRun: UUID?) async {
+        guard token == sessionID, let session = scrollingCaptureSession,
+              let region = scrollingRegion else { return }
+        scrollingHUD.update(.finishing(sectionCount: scrollingAcceptedFrames))
+        do {
+            guard case let .captured(artifact) = try await session.finish(),
+                  scrollingCaptureSession === session, token == sessionID else { return }
+            scrollingCaptureSession = nil
+            scrollingRegion = nil
+            scrollingHUD.dismiss()
+            let document = CaptureDocument(image: artifact.image, style: style)
+            document.performanceRunID = performanceRun
+            document.isPrivate = region.isPrivate
+            documentChanged(document, immediate: false, privateCapture: region.isPrivate,
+                            workflow: .scroll)
+            phase = .idle
+            reopen(document)
+        } catch {
+            guard scrollingCaptureSession === session, token == sessionID else { return }
+            scrollingHUD.update(.terminal(reason: error.localizedDescription,
+                                           sectionCount: scrollingAcceptedFrames))
+            report(error.localizedDescription)
+        }
+    }
+
+    private func cancelScrollingCapture(token: UUID) async {
+        guard token == sessionID, let session = scrollingCaptureSession else { return }
+        scrollingCaptureSession = nil
+        scrollingRegion = nil
+        scrollingAcceptedFrames = 0
+        scrollingHUD.dismiss()
+        phase = .idle
+        _ = beginSession()
+        _ = await session.cancel()
+        if !isQuitting { floatingCaptures.setCaptureHidden(false) }
+        diagnostics?.setCaptureHidden(false)
+        statusMessage = nil
     }
 
     private func documentChanged(_ document: CaptureDocument, immediate: Bool, privateCapture: Bool = false, workflow: CaptureWorkflow? = nil) {
@@ -329,6 +458,19 @@ final class AppState {
     }
 
     func closeEditor() {
+        if let session = scrollingCaptureSession {
+            scrollingCaptureSession = nil
+            scrollingRegion = nil
+            scrollingAcceptedFrames = 0
+            scrollingHUD.dismiss()
+            phase = .idle
+            _ = beginSession()
+            Task { _ = await session.cancel() }
+            if !isQuitting { floatingCaptures.setCaptureHidden(false) }
+            diagnostics?.setCaptureHidden(false)
+            statusMessage = nil
+            return
+        }
         if persistUnsavedCaptures, let document = lastDocument { Task { await enqueueRecovery(document) } }
         overlay.dismiss()
         if !isQuitting { floatingCaptures.setCaptureHidden(false) }
@@ -714,6 +856,12 @@ final class AppState {
         indexingObserver?.cancel()
         let openDocument = overlay.activeDocument
         overlay.dismiss()
+        if let scrollingCaptureSession {
+            self.scrollingCaptureSession = nil
+            scrollingRegion = nil
+            scrollingHUD.dismiss()
+            _ = await scrollingCaptureSession.cancel()
+        }
         _ = beginSession()
         phase = .idle
         while exportCoordinator.hasActiveExports { try? await Task.sleep(for: .milliseconds(25)) }
@@ -794,7 +942,7 @@ final class AppState {
 
     @discardableResult
     func captureLastRegion(quickCopy: Bool = false, respectImmediatePreference: Bool = true) async -> Bool {
-        guard !isQuitting, phase != .freezing else { return false }
+        guard !isQuitting, !isCapturing else { return false }
         guard let region = lastRegion, region.isValid else { report("Select a region once before recapturing it."); return false }
         guard let displayFrame = captureService.currentDisplayFrame(id: region.displayID), displayFrame == region.displayFrame else {
             report("The last region's display layout changed. Select a new region."); return false
@@ -888,7 +1036,7 @@ final class AppState {
 
     func systemCaptureEnvironmentChanged() {
         captureService.invalidateDisplayCache()
-        if phase == .freezing || phase == .editing { closeEditor() }
+        if phase == .freezing || phase == .scrolling || phase == .editing { closeEditor() }
     }
 
     func handleMemoryPressure() async {
@@ -946,7 +1094,7 @@ final class AppState {
     }
 
     func combineHistory(_ ids: [UUID], axis: HistoryCombineAxis) async throws {
-        guard !isQuitting, phase != .freezing else { throw CaptureError.failed("Finish the current capture before combining history.") }
+        guard !isQuitting, !isCapturing else { throw CaptureError.failed("Finish the current capture before combining history.") }
         let privateForSession = appSettings.privateCapture
         let style = appSettings.style(for: .combine)
         let token = beginSession()
