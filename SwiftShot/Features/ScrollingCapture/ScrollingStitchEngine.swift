@@ -1,13 +1,19 @@
 import CoreGraphics
 import Foundation
+import OSLog
 
 /// Stateful pixel stitcher. Native capture objects and UI state never enter this actor.
 actor ScrollingStitchEngine {
+    private let logger = Logger(subsystem: "com.swiftshot.app", category: "ScrollingStitch")
     private struct PixelFrame: Sendable {
         let width: Int
         let height: Int
         let scale: CGFloat
         let rgba: [UInt8]
+        let signatureColumns: Int
+        let rowSignatures: [UInt8]
+
+        var retainedBytes: Int { rgba.count + rowSignatures.count }
     }
 
     private struct StickyInsets: Equatable, Sendable {
@@ -60,7 +66,7 @@ actor ScrollingStitchEngine {
                 throw ScrollingStitchError.acceptedFrameLimitExceeded(limit: limits.maximumAcceptedFrames)
             }
             try preflight(outputWidth: width, outputHeight: height,
-                          referenceBytes: incoming.rgba.count)
+                          referenceBytes: incoming.retainedBytes)
             body = incoming.rgba
             reference = incoming
             acceptedFrames = 1
@@ -87,6 +93,7 @@ actor ScrollingStitchEngine {
         case .unchanged:
             return result(.unchanged)
         case let .rejected(reason):
+            logger.debug("Rejected frame: \(String(describing: reason), privacy: .public)")
             return result(.rejected(reason))
         case let .append(seam):
             guard acceptedFrames < limits.maximumAcceptedFrames else {
@@ -94,7 +101,7 @@ actor ScrollingStitchEngine {
             }
             let nextHeight = currentOutputHeight + seam.shift
             try preflight(outputWidth: width, outputHeight: nextHeight,
-                          referenceBytes: incoming.rgba.count)
+                          referenceBytes: incoming.retainedBytes)
 
             if stickyInsets == nil {
                 applyInitialStickyInsets(proposedInsets, frame: previous)
@@ -107,6 +114,7 @@ actor ScrollingStitchEngine {
             reference = incoming
             acceptedFrames += 1
             appendedRows += seam.shift
+            logger.debug("Appended \(seam.shift, privacy: .public) rows; accepted=\(self.acceptedFrames, privacy: .public)")
             return result(.appended(rows: seam.shift))
         }
     }
@@ -155,7 +163,7 @@ actor ScrollingStitchEngine {
     }
 
     private var retainedBytes: Int {
-        stickyTop.count + body.count + stickyBottom.count + (reference?.rgba.count ?? 0)
+        stickyTop.count + body.count + stickyBottom.count + (reference?.retainedBytes ?? 0)
     }
 
     private func preflight(outputWidth: Int, outputHeight: Int, referenceBytes: Int) throws {
@@ -208,7 +216,24 @@ actor ScrollingStitchEngine {
         }
         context.interpolationQuality = .none
         context.draw(input.image, in: CGRect(x: 0, y: 0, width: width, height: height))
-        return PixelFrame(width: width, height: height, scale: input.pointPixelScale, rgba: rgba)
+        let signatureColumns = min(64, width)
+        var rowSignatures = [UInt8](repeating: 0, count: height * signatureColumns)
+        for y in 0..<height {
+            for column in 0..<signatureColumns {
+                let lower = column * width / signatureColumns
+                let upper = max(lower + 1, (column + 1) * width / signatureColumns)
+                var luminance = 0
+                for x in lower..<upper {
+                    let offset = (y * width + x) * 4
+                    luminance += (Int(rgba[offset]) * 3 + Int(rgba[offset + 1]) * 6
+                                  + Int(rgba[offset + 2])) / 10
+                }
+                rowSignatures[y * signatureColumns + column] =
+                    UInt8(clamping: luminance / (upper - lower))
+            }
+        }
+        return PixelFrame(width: width, height: height, scale: input.pointPixelScale, rgba: rgba,
+                          signatureColumns: signatureColumns, rowSignatures: rowSignatures)
     }
 
     private static func detectStickyInsets(_ previous: PixelFrame, _ current: PixelFrame) -> StickyInsets {
@@ -239,7 +264,10 @@ actor ScrollingStitchEngine {
               hasTexture(current, rows: insets.top..<(current.height - insets.bottom)) else {
             return .rejected(.insufficientTexture)
         }
-        let minimumOverlap = max(1, min(minimumOverlapRows, bodyHeight - 1))
+        // A sliver of matching chrome is not enough evidence for a seam. Keep at
+        // least one eighth of the viewport so fast scrolling pauses safely.
+        let confidenceFloor = max(2, bodyHeight / 8)
+        let minimumOverlap = max(1, min(max(minimumOverlapRows, confidenceFloor), bodyHeight - 1))
         var candidates = [Seam]()
         for shift in 0...(bodyHeight - minimumOverlap) {
             if shift.isMultiple(of: 64), Task.isCancelled { throw ScrollingStitchError.cancelled }
@@ -249,11 +277,21 @@ actor ScrollingStitchEngine {
             if score <= 8 { candidates.append(Seam(shift: shift, score: score)) }
         }
         candidates.sort { $0.score == $1.score ? $0.shift < $1.shift : $0.score < $1.score }
+        candidates = candidates.prefix(24).map {
+            Seam(shift: $0.shift, score: difference(previous,
+                previousStart: insets.top + $0.shift, current,
+                currentStart: insets.top, rows: bodyHeight - $0.shift, exhaustive: true))
+        }.filter { $0.score <= 8 }
+        candidates.sort { $0.score == $1.score ? $0.shift < $1.shift : $0.score < $1.score }
         if let best = candidates.first {
-            if candidates.dropFirst().contains(where: { $0.score <= max(best.score + 0.75, best.score * 1.25) }) {
+            // A duplicate frame is always safe to ignore. Repeated visual
+            // structure only becomes ambiguous once it proposes movement.
+            if best.shift == 0 { return .unchanged }
+            if candidates.dropFirst().contains(where: {
+                $0.score <= max(best.score + 0.0001, best.score * 1.10)
+            }) {
                 return .rejected(.ambiguousOverlap)
             }
-            if best.shift == 0 { return .unchanged }
             return .append(best)
         }
 
@@ -265,8 +303,17 @@ actor ScrollingStitchEngine {
             if score <= 8 { reverseCandidates.append(Seam(shift: shift, score: score)) }
         }
         reverseCandidates.sort { $0.score == $1.score ? $0.shift < $1.shift : $0.score < $1.score }
+        reverseCandidates = reverseCandidates.prefix(24).map {
+            Seam(shift: $0.shift, score: difference(previous,
+                previousStart: insets.top, current,
+                currentStart: insets.top + $0.shift, rows: bodyHeight - $0.shift,
+                exhaustive: true))
+        }.filter { $0.score <= 8 }
+        reverseCandidates.sort { $0.score == $1.score ? $0.shift < $1.shift : $0.score < $1.score }
         if let best = reverseCandidates.first,
-           !reverseCandidates.dropFirst().contains(where: { $0.score <= max(best.score + 0.75, best.score * 1.25) }) {
+           !reverseCandidates.dropFirst().contains(where: {
+               $0.score <= max(best.score + 0.0001, best.score * 1.10)
+           }) {
             return .rejected(.reverseMotion)
         }
         return .rejected(.insufficientOverlap)
@@ -294,23 +341,21 @@ actor ScrollingStitchEngine {
     }
 
     private static func difference(_ previous: PixelFrame, previousStart: Int,
-                                   _ current: PixelFrame, currentStart: Int, rows: Int) -> Double {
-        let rowStep = max(1, rows / 48)
-        let columnStep = max(1, previous.width / 48)
+                                   _ current: PixelFrame, currentStart: Int, rows: Int,
+                                   exhaustive: Bool = false) -> Double {
+        let rowStep = exhaustive ? 1 : max(1, rows / 48)
+        let columns = min(previous.signatureColumns, current.signatureColumns)
         var total = 0
         var samples = 0
         var row = 0
         while row < rows {
-            var x = 0
-            while x < previous.width {
-                let a = ((previousStart + row) * previous.width + x) * 4
-                let b = ((currentStart + row) * current.width + x) * 4
-                total += abs(Int(previous.rgba[a]) - Int(current.rgba[b]))
-                total += abs(Int(previous.rgba[a + 1]) - Int(current.rgba[b + 1]))
-                total += abs(Int(previous.rgba[a + 2]) - Int(current.rgba[b + 2]))
-                samples += 3
-                x += columnStep
+            let a = (previousStart + row) * previous.signatureColumns
+            let b = (currentStart + row) * current.signatureColumns
+            for column in 0..<columns {
+                total += abs(Int(previous.rowSignatures[a + column]) -
+                             Int(current.rowSignatures[b + column]))
             }
+            samples += columns
             row += rowStep
         }
         return samples == 0 ? .infinity : Double(total) / Double(samples)

@@ -29,8 +29,8 @@ enum ScrollingCaptureHUDState: Equatable, Sendable {
             ScrollingCaptureHUDPresentation(headline: "Scroll the page", detail: "Adding section…",
                                             showsProgress: true, finishEnabled: true)
         case .recoverableSeam:
-            ScrollingCaptureHUDPresentation(headline: "Scroll back slightly",
-                                            detail: "The last section didn’t overlap.",
+            ScrollingCaptureHUDPresentation(headline: "Scroll a little slower",
+                                            detail: "The last view didn’t overlap enough.",
                                             showsProgress: false, finishEnabled: true)
         case .terminal(let reason, _):
             ScrollingCaptureHUDPresentation(headline: "Capture paused", detail: reason,

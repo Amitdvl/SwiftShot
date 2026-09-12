@@ -38,7 +38,7 @@ final class ScrollingCaptureHUDTests: XCTestCase {
         XCTAssertEqual(ScrollingCaptureHUDState.ready(sectionCount: 3).presentation.detail,
                        "3 sections captured")
         XCTAssertEqual(ScrollingCaptureHUDState.recoverableSeam(sectionCount: 2).presentation,
-                       .init(headline: "Scroll back slightly", detail: "The last section didn’t overlap.",
+                       .init(headline: "Scroll a little slower", detail: "The last view didn’t overlap enough.",
                              showsProgress: false, finishEnabled: true))
         XCTAssertEqual(ScrollingCaptureHUDState.terminal(reason: "The page size changed.", sectionCount: 4).presentation,
                        .init(headline: "Capture paused", detail: "The page size changed.", showsProgress: false,
@@ -136,7 +136,7 @@ private enum DirectScrollingCaptureHUDTestRunner {
         check(ScrollingCaptureHUDState.ready(sectionCount: 3).presentation.detail == "3 sections captured",
               "ready copy should pluralize sections")
         check(ScrollingCaptureHUDState.recoverableSeam(sectionCount: 2).presentation ==
-              .init(headline: "Scroll back slightly", detail: "The last section didn’t overlap.",
+              .init(headline: "Scroll a little slower", detail: "The last view didn’t overlap enough.",
                     showsProgress: false, finishEnabled: true),
               "recoverable seam copy should explain the recovery action")
         check(ScrollingCaptureHUDState.terminal(reason: "The page size changed.", sectionCount: 4).presentation ==

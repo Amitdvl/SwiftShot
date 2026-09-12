@@ -14,7 +14,7 @@ final class ScrollingStitchEngineTests: XCTestCase {
 
         XCTAssertEqual(result.disposition, .firstFrame)
         XCTAssertEqual(result.progress, ScrollingStitchProgress(
-            acceptedFrames: 1, outputWidth: 5, outputHeight: 6, retainedBytes: 240))
+            acceptedFrames: 1, outputWidth: 5, outputHeight: 6, retainedBytes: 270))
         let artifact = try await engine.render()
         XCTAssertEqual(artifact.acceptedFrames, 1)
         XCTAssertEqual(artifact.appendedRows, 0)
@@ -61,6 +61,22 @@ final class ScrollingStitchEngineTests: XCTestCase {
         XCTAssertEqual(result.progress.outputHeight, 8)
     }
 
+    func testSparseRepeatedPageUsesNarrowUniqueMarkersToDisambiguateTheSeam() async throws {
+        let width = 1_440
+        let viewportHeight = 960
+        let shift = 80
+        let rows = sparseRepeatedPageRows(count: viewportHeight + shift, width: width)
+        let engine = ScrollingStitchEngine()
+        _ = try await engine.ingest(frame(try image(
+            rows: Array(rows[0..<viewportHeight]), width: width)))
+
+        let next = try image(rows: Array(rows[shift..<(viewportHeight + shift)]), width: width)
+        let result = try await engine.ingest(frame(next))
+
+        XCTAssertEqual(result.disposition, .appended(rows: shift))
+        XCTAssertEqual(result.progress.outputHeight, viewportHeight + shift)
+    }
+
     func testStickyTopAndBottomRowsAppearExactlyOnce() async throws {
         let width = 7
         let content = documentRows(0..<10, width: width)
@@ -88,10 +104,11 @@ final class ScrollingStitchEngineTests: XCTestCase {
         let a = specialRow(seed: 31, width: width)
         let b = specialRow(seed: 173, width: width)
         let repeated = try image(rows: [a, b, a, b, a, b], width: width)
+        let shifted = try image(rows: [b, a, b, a, b, a], width: width)
         let engine = ScrollingStitchEngine()
         _ = try await engine.ingest(frame(repeated))
 
-        let result = try await engine.ingest(frame(repeated))
+        let result = try await engine.ingest(frame(shifted))
 
         XCTAssertEqual(result.disposition, .rejected(.ambiguousOverlap))
         XCTAssertEqual(result.progress.acceptedFrames, 1)
@@ -180,7 +197,7 @@ final class ScrollingStitchEngineTests: XCTestCase {
         let engine = ScrollingStitchEngine(limits: ScrollingStitchLimits(maximumRetainedBytes: 287))
         let source = try image(rows: documentRows(0..<6, width: 6), width: 6)
 
-        await assertError(.memoryLimitExceeded(limit: 287, required: 288)) {
+        await assertError(.memoryLimitExceeded(limit: 287, required: 324)) {
             _ = try await engine.ingest(self.frame(source))
         }
         await assertError(.noFrames) { _ = try await engine.render() }
@@ -230,6 +247,29 @@ final class ScrollingStitchEngineTests: XCTestCase {
                 guard byteIndex % 4 != 3 else { return value }
                 let delta = rowIndex.isMultiple(of: 2) ? Int(amount) : -Int(amount)
                 return UInt8(clamping: Int(value) + delta)
+            }
+        }
+    }
+
+    /// Browser-like pages contain lots of white space and repeat the same card
+    /// geometry. The identity signal can be much narrower than a fixed sampling
+    /// stride, so every source pixel must contribute to the seam fingerprint.
+    private func sparseRepeatedPageRows(count: Int, width: Int) -> [[UInt8]] {
+        (0..<count).map { row in
+            let section = row / 384
+            let local = row % 384
+            return (0..<width).flatMap { x -> [UInt8] in
+                let value: UInt8
+                if (20..<44).contains(local), (80..<620).contains(x) {
+                    value = 28
+                } else if (120..<132).contains(local), (60..<1_220).contains(x) {
+                    value = 112
+                } else if (50..<62).contains(local), (11..<20).contains(x) {
+                    value = UInt8(32 + (section * 47) % 180)
+                } else {
+                    value = 248
+                }
+                return [value, value, value, 255]
             }
         }
     }
