@@ -4,15 +4,9 @@ import OSLog
 @main
 struct SwiftShotApp: App {
     @State private var appState = AppState.shared
-    @State private var testMenuBarExtraIsInserted = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        // XCTest needs the SwiftUI menu-bar scene to establish a regular
-        // AppKit test host. The running app owns its status item directly.
-        MenuBarExtra("SwiftShot", systemImage: "camera.viewfinder", isInserted: $testMenuBarExtraIsInserted) {
-            EmptyView()
-        }
         Settings {
             EmptyView()
         }
@@ -36,35 +30,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // available after launch.
         ProcessInfo.processInfo.automaticTerminationSupportEnabled = true
         ProcessInfo.processInfo.disableAutomaticTermination("SwiftShot menu bar app")
-        // XCTest hosts also instantiate the app delegate. Leave their activation
-        // controls and status item untouched; their AppKit fixtures take over
-        // from the same accessory policy as the live menu-bar app.
-        NSApp.setActivationPolicy(.accessory)
+        // A manually owned status item survives macOS 26's Control Center
+        // visibility changes. Keep a Dock entry as a recovery path if the
+        // system hides that item, rather than creating a menu-bar-only scene
+        // that macOS automatically terminates on removal.
+        NSApp.setActivationPolicy(.regular)
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         installStatusItem()
         AppState.shared.start()
     }
 
     private func installStatusItem() {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.autosaveName = "com.swiftshot.statusItem"
-        item.behavior = []
         item.isVisible = true
         guard let button = item.button else { return }
-        button.image = NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)
-        if button.image == nil {
-            button.image = NSImage(named: NSImage.applicationIconName)
-                ?? NSImage(systemSymbolName: "camera.fill", accessibilityDescription: "SwiftShot")
-        }
-        button.image?.isTemplate = false
+        button.image = NSImage(systemSymbolName: "viewfinder.circle", accessibilityDescription: "SwiftShot")
+        button.image?.isTemplate = true
         button.imageScaling = .scaleProportionallyDown
-        button.title = "SwiftShot"
-        button.imagePosition = .imageLeft
         button.toolTip = "SwiftShot"
         button.target = self
         button.action = #selector(toggleStatusPopover(_:))
         statusItem = item
-        logger.info("Installed status item; visible=\(item.isVisible, privacy: .public), title=\(button.title, privacy: .public)")
+        logger.info("Installed status item; visible=\(item.isVisible, privacy: .public)")
     }
 
     @objc private func toggleStatusPopover(_ sender: Any?) {
@@ -76,7 +64,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let popover = NSPopover()
         popover.behavior = .transient
-        popover.animates = true
         popover.contentSize = NSSize(width: 280, height: 400)
         popover.contentViewController = NSHostingController(
             rootView: MenuBarView()
