@@ -86,12 +86,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let popover = NSPopover()
         popover.behavior = .transient
-        popover.contentSize = NSSize(width: 280, height: 400)
+        popover.contentSize = NSSize(width: 320, height: 348)
         popover.contentViewController = NSHostingController(
             rootView: MenuBarView()
                 .environment(AppState.shared)
-                .padding(.vertical, 8)
-                .frame(width: 280)
+                .frame(width: 320)
         )
         statusPopover = popover
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
@@ -104,43 +103,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             else { sender.reply(toApplicationShouldTerminate: false) }
         }
         return .terminateLater
-    }
-}
-
-struct MenuBarView: View {
-    @Environment(AppState.self) private var appState
-
-    var body: some View {
-        ForEach([CaptureMode.region, .window, .fullscreen], id: \.self) { mode in
-            if mode == .region {
-                Button { Task { await appState.capture(mode: mode) } } label: {
-                    Label(mode.label, systemImage: mode.icon)
-                }
-                // Carbon hot keys are swallowed while this status menu tracks.
-                // The region default is also a native menu key equivalent, so
-                // pressing ⌘⇧2 while the dropdown is open starts the same
-                // capture action before AppKit dismisses the menu.
-                .keyboardShortcut("2", modifiers: [.command, .shift])
-                .disabled(appState.isCapturing)
-            } else {
-                Button { Task { await appState.capture(mode: mode) } } label: {
-                    Label(mode.label, systemImage: mode.icon)
-                }
-                .disabled(appState.isCapturing)
-            }
-        }
-        Menu("More Capture Options") {
-            Button("Copy Text from Screen", systemImage: "text.viewfinder") {
-                Task { await appState.capture(mode: .ocr) }
-            }.disabled(appState.isCapturing)
-            Button("Scrolling Capture…", systemImage: "scroll") {
-                Task { await appState.capture(mode: .region, scrollingCapture: true) }
-            }.disabled(appState.isCapturing)
-            Button("Recapture Last Region") { Task { await appState.captureLastRegion() } }
-                .disabled(appState.lastRegion == nil || appState.isCapturing)
-        }
-        Divider()
-        Button("Settings…") { appState.showPreferences() }.keyboardShortcut(",", modifiers: [.command])
-        Button("Quit SwiftShot") { NSApp.terminate(nil) }.keyboardShortcut("q", modifiers: [.command])
     }
 }
