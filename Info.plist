@@ -20,6 +20,8 @@
     <string>SwiftShot</string>
     <key>LSMinimumSystemVersion</key>
     <string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+    <key>LSUIElement</key>
+    <true/>
     <key>NSScreenCaptureUsageDescription</key>
     <string>SwiftShot needs Screen Recording permission to capture screenshots.</string>
     <key>NSAppleEventsUsageDescription</key>

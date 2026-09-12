@@ -30,11 +30,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // available after launch.
         ProcessInfo.processInfo.automaticTerminationSupportEnabled = true
         ProcessInfo.processInfo.disableAutomaticTermination("SwiftShot menu bar app")
-        // A manually owned status item survives macOS 26's Control Center
-        // visibility changes. Keep a Dock entry as a recovery path if the
-        // system hides that item, rather than creating a menu-bar-only scene
-        // that macOS automatically terminates on removal.
-        NSApp.setActivationPolicy(.regular)
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         installStatusItem()
         AppState.shared.start()
@@ -42,16 +37,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func installStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.autosaveName = "com.swiftshot.statusItem"
-        item.isVisible = true
-        guard let button = item.button else { return }
+        // Give AppKit one stable identity for visibility and position across
+        // launches instead of relying on its generated Item-0 fallback.
+        item.autosaveName = "SwiftShot"
+        // Retain the item before asking Control Center for its asynchronously
+        // hosted button. Otherwise a temporarily missing button deallocates the
+        // only status item and leaves the app running with no menu-bar entry.
+        statusItem = item
+        configureStatusItem(item, retriesRemaining: 10)
+    }
+
+    private func configureStatusItem(_ item: NSStatusItem, retriesRemaining: Int) {
+        guard item === statusItem else { return }
+        guard let button = item.button else {
+            guard retriesRemaining > 0 else {
+                logger.error("Status item button never became available")
+                return
+            }
+            Task { @MainActor [weak self, weak item] in
+                try? await Task.sleep(for: .milliseconds(100))
+                guard let self, let item else { return }
+                self.configureStatusItem(item, retriesRemaining: retriesRemaining - 1)
+            }
+            return
+        }
+
         button.image = NSImage(systemSymbolName: "viewfinder.circle", accessibilityDescription: "SwiftShot")
         button.image?.isTemplate = true
         button.imageScaling = .scaleProportionallyDown
         button.toolTip = "SwiftShot"
         button.target = self
         button.action = #selector(toggleStatusPopover(_:))
-        statusItem = item
+        item.isVisible = true
         logger.info("Installed status item; visible=\(item.isVisible, privacy: .public)")
     }
 

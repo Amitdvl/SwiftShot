@@ -19,6 +19,10 @@ settings:
     CODE_SIGN_IDENTITY: "-"
     ENABLE_HARDENED_RUNTIME: true
   configs:
+    Debug:
+      # Keep XCTest and local debug products from impersonating the installed
+      # app in Launch Services and macOS 26's per-app menu-bar allow list.
+      PRODUCT_BUNDLE_IDENTIFIER: com.swiftshot.app.debug
     Release:
       CODE_SIGN_IDENTITY: "Apple Development"
       CODE_SIGN_STYLE: Manual
