@@ -1,5 +1,13 @@
 # Product-focused release verification
 
+## 2026-09-13 passive Scrolling Capture rebuild
+
+Scrolling Capture was deleted and rebuilt as a passive workflow: choose **Capture Scrolling Area…**, select one viewport, scroll naturally, then **Finish** or **Cancel** from a compact nonactivating HUD. A persistent cropped ScreenCaptureKit stream excludes SwiftShot itself and feeds a bounded newest-wins queue. A pure off-main stitch engine accepts only confident seams, preserves verified partial output, and renders once into the normal `.scroll` editor path. There is no synthetic input, pointer movement, page-position restoration, bottom detection, or Accessibility/Input Monitoring dependency.
+
+The current branch includes deterministic coverage for exact uneven offsets, sparse/repeated layouts, narrow unique markers, duplicates, noise, sticky edges, blank/ambiguous content, reverse motion, dimensions/scales, limits, cancellation/stale callbacks, source failure, HUD behavior, private lineage, and editor handoff. Native validation on the signed Release app captured the 720 × 480 CSS-pixel browser fixture at 2×, kept the browser scroller focused, advanced from 1 to 10 accepted frame sections during keyboard/Page Down scrolling, and produced a continuous **1440 × 2039** editor image. The HUD was absent from the captured pixels. Native Cancel produced no editor document.
+
+The full automated suite, final package hash, commit list, and remote publication evidence for this candidate are recorded below once the final shipping gate completes. Historical sections after this candidate describe earlier builds; references there to automatic scrolling concern the retired implementation, not the current product.
+
 2026-09-11. This is the product finish pass defined in [GOAL.md](GOAL.md), not completion of the old exhaustive certification matrix. All artifacts below are retained locally under `build/goal/` and are not a public notarized release.
 
 **Delivered:** product source commit `f9ea9c958834dac41d3510e43a385918134b712f` was pushed to `origin/main` and verified against the remote ref. The installed app's signature and executable hash were rechecked after publication; it remains running. No new material blocker was found in the bounded finish pass. Documentation-only delivery bookkeeping may follow this product commit without changing the tested binary.
@@ -29,7 +37,7 @@ Prior native evidence in [GOAL_PROGRESS.md](GOAL_PROGRESS.md) includes actual Re
 
 - OCR already uses bitmap-only rendering, avoiding PNG. Earlier correct warm OCR admission -> clipboard observations were **100.449/115.488 ms**; one first-use observation was **7502.576 ms**, unattributed. The bounded smoke established working ordinary text recognition, not broad language/accuracy or cold-latency certification. Further OCR optimization is not the release focus.
 - Historical Window editor p95 and ordinary-edited native-4K Copy targets are not certified. Busy/multiple-display matrices, display-rate proof, full HDR fidelity and macOS 14 runtime checks are unverified on this machine.
-- Automatic scrolling has conservative early rejections on some changing content. Exact native full-page provenance/pixel certification for every dynamic/repeated/sticky case is incomplete; retained incomplete-result warnings and refusal paths must not be read as successful full-page capture.
+- The retired automatic-scrolling implementation had conservative early rejections on some changing content. Its retained evidence is historical and must not be read as a claim about the passive rebuild above.
 - Native Shortcuts registration/OS-transition and drag-destination coverage is incomplete. Local tests are not a claim of external CI success or notarization.
 
 ## Local package

@@ -6,7 +6,7 @@ Capture, annotate, and copy screenshots from your Mac’s menu bar.
 
 Select a region on a frozen screen, capture a window or display, or copy text from your screen. Edit beside the capture, then copy the result or save a PNG. Native Swift and SwiftUI. No account or cloud service required.
 
-Visible SwiftShot windows and panels are part of display and region captures, so you can document the tool itself as you work.
+Visible SwiftShot windows and panels are part of ordinary display and region captures, so you can document the tool itself as you work. The compact Scrolling Capture HUD is excluded from its own stream.
 Window capture also recognizes application-owned menus and dropdowns while ignoring compositor chrome such as the Dock and menu bar. Pinning is an explicit action in the capture toolbar; the recent thumbnail can be enabled separately in Settings.
 
 ## Capture to clipboard
@@ -21,6 +21,12 @@ Press **⌘⇧2**, select a region, and edit with the attached toolbar:
 Use **Copy Text from Screen** in the menu bar for OCR. Enable window, fullscreen, and OCR keyboard shortcuts in **Settings → Shortcuts**.
 
 For the shortest path, **Quick Copy Region** copies your selection before restoring focus. It stays in memory unless you choose Save; its optional thumbnail lets you edit, save, pin, or drag the image. Raw output is the default; styling and named presets are explicit choices.
+
+## Capture scrolling content
+
+Choose **More Capture Options → Capture Scrolling Area…**, then drag around the visible part of the page or document. Scroll normally with your trackpad, mouse, or keyboard while SwiftShot quietly adds verified content. The source app keeps focus.
+
+Press **Finish** in the floating HUD to open the stitched image in the normal editor, or **Cancel** to discard the session. If two views do not overlap confidently, SwiftShot pauses that append and asks you to scroll a little slower; accepted pixels remain intact. SwiftShot never drives the page, moves the pointer, guesses the bottom, or requires Accessibility/Input Monitoring permission.
 
 ## Keep working with your captures
 
