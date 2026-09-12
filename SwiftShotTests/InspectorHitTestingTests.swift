@@ -199,8 +199,10 @@ private final class InspectorHitTestingFixture {
         do {
             _ = try XCTUnwrap(library.errorMessage == nil ? library : nil,
                 "SETUP: the isolated background-library directory must be usable")
-            let changed = NSApp.setActivationPolicy(.regular)
-            _ = try XCTUnwrap(changed && NSApp.activationPolicy() == .regular ? window : nil,
+            // AppDelegate may already have established `.regular` for XCTest;
+            // AppKit returns false when no policy transition was needed.
+            NSApp.setActivationPolicy(.regular)
+            XCTAssertEqual(NSApp.activationPolicy(), .regular,
                 "SETUP: could not establish the regular, process-local test host")
             window.orderFrontRegardless()
             try await Task.sleep(for: .milliseconds(150))

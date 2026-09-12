@@ -162,8 +162,10 @@ private final class FloatingKeyboardFixture {
         do {
             // This fixture characterizes production content/window routing,
             // not the menu-bar application's accessory activation behavior.
-            let changed = NSApp.setActivationPolicy(.regular)
-            _ = try XCTUnwrap(changed && NSApp.activationPolicy() == .regular ? main : nil,
+            // AppDelegate may already have established `.regular` for XCTest;
+            // AppKit returns false when no policy transition was needed.
+            NSApp.setActivationPolicy(.regular)
+            XCTAssertEqual(NSApp.activationPolicy(), .regular,
                 "The native key-routing fixture could not establish a regular test host")
             // A never-ordered window is not eligible for makeMain(); AppKit
             // asserts in _changeJustMain before any routing can be exercised.
@@ -237,6 +239,9 @@ private final class FloatingKeyboardFixture {
         try await Task.sleep(for: .milliseconds(200))
         for _ in 0..<100 {
             if NSApp.isActive, NSApp.keyWindow === window, window.isKeyWindow { break }
+            _ = NSRunningApplication.current.activate(options: [])
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
             try await Task.sleep(for: .milliseconds(20))
         }
         print("FloatingKeyboard focus title=\(window.title) visible=\(window.isVisible) key=\(window.isKeyWindow) appActive=\(NSApp.isActive) policy=\(NSApp.activationPolicy().rawValue) activationRequested=\(activationRequested) canKey=\(window.canBecomeKey) canMain=\(window.canBecomeMain) targetIsMain=\(NSApp.mainWindow === window) keyIsNil=\(NSApp.keyWindow == nil) mainIsNil=\(NSApp.mainWindow == nil)")
