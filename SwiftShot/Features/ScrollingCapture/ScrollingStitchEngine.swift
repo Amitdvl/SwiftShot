@@ -122,13 +122,23 @@ actor ScrollingStitchEngine {
     func render() throws -> ScrollingStitchArtifact {
         try checkCancellation()
         guard let reference else { throw ScrollingStitchError.noFrames }
-        var rgba = [UInt8]()
-        rgba.reserveCapacity(stickyTop.count + body.count + stickyBottom.count)
-        rgba.append(contentsOf: stickyTop)
-        rgba.append(contentsOf: body)
-        rgba.append(contentsOf: stickyBottom)
+        let outputByteCount = stickyTop.count + body.count + stickyBottom.count
+        try preflight(outputWidth: reference.width, outputHeight: currentOutputHeight,
+                      referenceBytes: reference.retainedBytes)
+        guard let rgba = NSMutableData(capacity: outputByteCount) else {
+            throw ScrollingStitchError.memoryLimitExceeded(limit: limits.maximumRetainedBytes,
+                                                           required: outputByteCount)
+        }
+        for component in [stickyTop, body, stickyBottom] where !component.isEmpty {
+            component.withUnsafeBytes { bytes in
+                if let baseAddress = bytes.baseAddress {
+                    rgba.append(baseAddress, length: bytes.count)
+                }
+            }
+        }
+        guard rgba.length == outputByteCount else { throw ScrollingStitchError.invalidFrame }
         try checkCancellation()
-        guard let provider = CGDataProvider(data: Data(rgba) as CFData),
+        guard let provider = CGDataProvider(data: rgba as CFData),
               let image = CGImage(width: reference.width, height: currentOutputHeight,
                 bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: reference.width * 4,
                 space: CGColorSpace(name: CGColorSpace.sRGB)!,
@@ -137,8 +147,13 @@ actor ScrollingStitchEngine {
                 shouldInterpolate: false, intent: .defaultIntent) else {
             throw ScrollingStitchError.invalidFrame
         }
-        return ScrollingStitchArtifact(image: image, acceptedFrames: acceptedFrames,
-                                       appendedRows: appendedRows)
+        let artifact = ScrollingStitchArtifact(image: image, acceptedFrames: acceptedFrames,
+                                               appendedRows: appendedRows)
+        self.reference = nil
+        stickyTop.removeAll(keepingCapacity: false)
+        body.removeAll(keepingCapacity: false)
+        stickyBottom.removeAll(keepingCapacity: false)
+        return artifact
     }
 
     func cancel() {
@@ -175,11 +190,14 @@ actor ScrollingStitchEngine {
                                                                 actual: outputPixels)
         }
         guard let outputBytes = multiplied(outputPixels, 4),
-              referenceBytes <= Int.max - outputBytes else {
+              let outputAndRenderBytes = multiplied(outputBytes, 2),
+              referenceBytes <= Int.max - outputAndRenderBytes else {
             throw ScrollingStitchError.memoryLimitExceeded(limit: limits.maximumRetainedBytes,
                                                            required: Int.max)
         }
-        let required = outputBytes + referenceBytes
+        // Accepted pixels remain owned while CoreGraphics receives one final,
+        // contiguous data buffer. Reserve both copies before mutating state.
+        let required = outputAndRenderBytes + referenceBytes
         guard required <= limits.maximumRetainedBytes else {
             throw ScrollingStitchError.memoryLimitExceeded(limit: limits.maximumRetainedBytes,
                                                            required: required)

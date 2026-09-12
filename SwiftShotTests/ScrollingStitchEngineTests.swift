@@ -214,10 +214,20 @@ final class ScrollingStitchEngineTests: XCTestCase {
     }
 
     func testMemoryCapIsPreflightedBeforeFirstMutation() async throws {
-        let engine = ScrollingStitchEngine(limits: ScrollingStitchLimits(maximumRetainedBytes: 287))
+        let engine = ScrollingStitchEngine(limits: ScrollingStitchLimits(maximumRetainedBytes: 467))
         let source = try image(rows: documentRows(0..<6, width: 6), width: 6)
 
-        await assertError(.memoryLimitExceeded(limit: 287, required: 324)) {
+        await assertError(.memoryLimitExceeded(limit: 467, required: 468)) {
+            _ = try await engine.ingest(self.frame(source))
+        }
+        await assertError(.noFrames) { _ = try await engine.render() }
+    }
+
+    func testMemoryCapReservesRenderBufferBeforeFirstMutation() async throws {
+        let engine = ScrollingStitchEngine(limits: ScrollingStitchLimits(maximumRetainedBytes: 400))
+        let source = try image(rows: documentRows(0..<6, width: 6), width: 6)
+
+        await assertError(.memoryLimitExceeded(limit: 400, required: 468)) {
             _ = try await engine.ingest(self.frame(source))
         }
         await assertError(.noFrames) { _ = try await engine.render() }

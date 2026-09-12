@@ -81,6 +81,34 @@ final class ScrollingCaptureSessionTests: XCTestCase {
         XCTAssertEqual(source.stopCount, 1)
     }
 
+    func testConcurrentCancelCallsBothWaitForTheSingleSourceStop() async throws {
+        let source = FakeScrollingFrameSource()
+        source.pauseStop = true
+        defer { source.resumeStop() }
+        let session = ScrollingCaptureSession(source: source)
+        try await session.start(for: makeRegion())
+        var completionCount = 0
+
+        let first = Task {
+            _ = await session.cancel()
+            completionCount += 1
+        }
+        await eventually { source.stopHasBegun }
+        let second = Task {
+            _ = await session.cancel()
+            completionCount += 1
+        }
+        for _ in 0..<10 { await Task.yield() }
+
+        XCTAssertEqual(completionCount, 0)
+        XCTAssertEqual(source.stopCount, 1)
+        source.resumeStop()
+        await first.value
+        await second.value
+        XCTAssertEqual(completionCount, 2)
+        XCTAssertEqual(source.stopCount, 1)
+    }
+
     func testHundredSessionLifecycleHasBoundedP95AndBalancedStops() async throws {
         let region = try makeRegion()
         let first = try frame(rows: 0..<6)
@@ -151,6 +179,9 @@ private final class FakeScrollingFrameSource: ScrollingFrameSource {
     private var continuation: AsyncThrowingStream<ScrollingCaptureFrame, Error>.Continuation?
     private(set) var startCount = 0
     private(set) var stopCount = 0
+    private(set) var stopHasBegun = false
+    var pauseStop = false
+    private var stopContinuation: CheckedContinuation<Void, Never>?
 
     func start(for region: CaptureRegionReference) async throws -> AsyncThrowingStream<ScrollingCaptureFrame, Error> {
         startCount += 1
@@ -162,12 +193,21 @@ private final class FakeScrollingFrameSource: ScrollingFrameSource {
     func stop() async {
         guard continuation != nil else { return }
         stopCount += 1
+        stopHasBegun = true
+        if pauseStop {
+            await withCheckedContinuation { stopContinuation = $0 }
+        }
         continuation?.finish()
         continuation = nil
     }
 
     func send(_ frame: ScrollingCaptureFrame) { continuation?.yield(frame) }
     func fail(_ error: Error) { continuation?.finish(throwing: error); continuation = nil }
+    func resumeStop() {
+        pauseStop = false
+        stopContinuation?.resume()
+        stopContinuation = nil
+    }
 }
 
 private extension ScrollingCaptureSessionState {

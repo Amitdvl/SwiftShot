@@ -37,6 +37,7 @@ final class ScrollingCaptureSession {
     private let source: any ScrollingFrameSource
     private let engine: ScrollingStitchEngine
     private var consumeTask: Task<Void, Never>?
+    private var stopTask: Task<Void, Never>?
     private var sourceIsRunning = false
     private var terminalError: ScrollingCaptureSessionError?
     private var latestProgress = ScrollingStitchProgress(acceptedFrames: 0, outputWidth: 0,
@@ -126,10 +127,11 @@ final class ScrollingCaptureSession {
     }
 
     func cancel() async -> ScrollingCaptureOutcome {
-        guard state != .cancelled else { return .cancelled }
         guard state != .finished else { return .cancelled }
-        state = .cancelled
-        consumeTask?.cancel()
+        if state != .cancelled {
+            state = .cancelled
+            consumeTask?.cancel()
+        }
         await stopSourceOnce()
         await consumeTask?.value
         consumeTask = nil
@@ -138,9 +140,16 @@ final class ScrollingCaptureSession {
     }
 
     private func stopSourceOnce() async {
+        if let stopTask {
+            await stopTask.value
+            return
+        }
         guard sourceIsRunning else { return }
         sourceIsRunning = false
-        await source.stop()
+        let source = self.source
+        let task = Task { await source.stop() }
+        stopTask = task
+        await task.value
     }
 
     private func fail(_ error: ScrollingCaptureSessionError) {

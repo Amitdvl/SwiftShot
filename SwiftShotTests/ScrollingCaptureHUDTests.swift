@@ -43,6 +43,8 @@ final class ScrollingCaptureHUDTests: XCTestCase {
         XCTAssertEqual(ScrollingCaptureHUDState.terminal(reason: "The page size changed.", sectionCount: 4).presentation,
                        .init(headline: "Capture paused", detail: "The page size changed.", showsProgress: false,
                              finishEnabled: true))
+        XCTAssertFalse(ScrollingCaptureHUDState.terminal(reason: "Screen Recording was revoked.", sectionCount: 0)
+            .presentation.finishEnabled)
     }
 
     @MainActor
@@ -142,6 +144,8 @@ private enum DirectScrollingCaptureHUDTestRunner {
         check(ScrollingCaptureHUDState.terminal(reason: "The page size changed.", sectionCount: 4).presentation ==
               .init(headline: "Capture paused", detail: "The page size changed.", showsProgress: false,
                     finishEnabled: true), "terminal copy should preserve the supplied reason")
+        check(!ScrollingCaptureHUDState.terminal(reason: "Screen Recording was revoked.", sectionCount: 0)
+            .presentation.finishEnabled, "terminal capture without verified pixels must disable Finish")
     }
 
     @MainActor

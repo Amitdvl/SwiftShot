@@ -87,6 +87,7 @@ final class AppState {
     private var scrollingCaptureSession: ScrollingCaptureSession?
     private var scrollingRegion: CaptureRegionReference?
     private var scrollingAcceptedFrames = 0
+    private var scrollingCancellationInFlight = false
     private(set) var lastRegion: CaptureRegionReference?
     private let logger = Logger(subsystem: "com.swiftshot.app", category: "Workflow")
 
@@ -326,6 +327,7 @@ final class AppState {
         guard token == sessionID, phase == .scrolling, scrollingCaptureSession == nil else { return }
         scrollingRegion = region
         scrollingAcceptedFrames = 0
+        scrollingCancellationInFlight = false
         let session = ScrollingCaptureSession(source: scrollingFrameSourceFactory())
         scrollingCaptureSession = session
         let selectedFrame = CGRect(x: region.displayFrame.minX + region.rect.minX,
@@ -401,14 +403,21 @@ final class AppState {
     }
 
     private func cancelScrollingCapture(token: UUID) async {
-        guard token == sessionID, let session = scrollingCaptureSession else { return }
+        guard token == sessionID, let session = scrollingCaptureSession,
+              !scrollingCancellationInFlight else { return }
+        scrollingCancellationInFlight = true
+        scrollingHUD.dismiss()
+        _ = await session.cancel()
+        guard token == sessionID, scrollingCaptureSession === session else {
+            scrollingCancellationInFlight = false
+            return
+        }
         scrollingCaptureSession = nil
         scrollingRegion = nil
         scrollingAcceptedFrames = 0
-        scrollingHUD.dismiss()
+        scrollingCancellationInFlight = false
         phase = .idle
         _ = beginSession()
-        _ = await session.cancel()
         if !isQuitting { floatingCaptures.setCaptureHidden(false) }
         diagnostics?.setCaptureHidden(false)
         statusMessage = nil
@@ -458,17 +467,10 @@ final class AppState {
     }
 
     func closeEditor() {
-        if let session = scrollingCaptureSession {
-            scrollingCaptureSession = nil
-            scrollingRegion = nil
-            scrollingAcceptedFrames = 0
+        if scrollingCaptureSession != nil {
+            let token = sessionID
             scrollingHUD.dismiss()
-            phase = .idle
-            _ = beginSession()
-            Task { _ = await session.cancel() }
-            if !isQuitting { floatingCaptures.setCaptureHidden(false) }
-            diagnostics?.setCaptureHidden(false)
-            statusMessage = nil
+            Task { [weak self] in await self?.cancelScrollingCapture(token: token) }
             return
         }
         if persistUnsavedCaptures, let document = lastDocument { Task { await enqueueRecovery(document) } }

@@ -47,6 +47,75 @@ final class ScrollingCaptureIntegrationTests: XCTestCase {
         XCTAssertFalse(fixture.hud.isVisible)
     }
 
+    func testScrollingCancelKeepsCaptureOwnershipUntilSourceStopDrains() async throws {
+        let fixture = try ScrollingIntegrationFixture()
+        fixture.source.pauseStop = true
+        defer {
+            fixture.source.resumeStop()
+            fixture.cleanUp()
+        }
+
+        let started = await fixture.app.startScrollingCapture()
+        XCTAssertTrue(started)
+        fixture.overlay.selectFullRegion()
+        await eventually { fixture.source.startCount == 1 && fixture.hud.isVisible }
+        fixture.hud.cancel()
+        await eventually { fixture.source.stopHasBegun }
+
+        XCTAssertEqual(fixture.app.phase, .scrolling)
+        XCTAssertFalse(fixture.hud.isVisible)
+        let replacementStarted = await fixture.app.startScrollingCapture()
+        XCTAssertFalse(replacementStarted)
+        XCTAssertEqual(fixture.source.startCount, 1)
+
+        fixture.source.resumeStop()
+        await eventually { fixture.app.phase == .idle }
+        XCTAssertEqual(fixture.source.stopCount, 1)
+    }
+
+    func testCloseEditorKeepsCaptureOwnershipUntilSourceStopDrains() async throws {
+        let fixture = try ScrollingIntegrationFixture()
+        fixture.source.pauseStop = true
+        defer {
+            fixture.source.resumeStop()
+            fixture.cleanUp()
+        }
+
+        let started = await fixture.app.startScrollingCapture()
+        XCTAssertTrue(started)
+        fixture.overlay.selectFullRegion()
+        await eventually { fixture.source.startCount == 1 && fixture.hud.isVisible }
+        fixture.app.closeEditor()
+        await eventually { fixture.source.stopHasBegun }
+
+        XCTAssertEqual(fixture.app.phase, .scrolling)
+        let replacementStarted = await fixture.app.startScrollingCapture()
+        XCTAssertFalse(replacementStarted)
+        XCTAssertEqual(fixture.source.startCount, 1)
+
+        fixture.source.resumeStop()
+        await eventually { fixture.app.phase == .idle }
+        XCTAssertEqual(fixture.source.stopCount, 1)
+    }
+
+    func testScrollingFinishPreservesPrivateLineage() async throws {
+        let fixture = try ScrollingIntegrationFixture()
+        defer { fixture.cleanUp() }
+        fixture.app.appSettings.privateCapture = true
+
+        let started = await fixture.app.startScrollingCapture()
+        XCTAssertTrue(started)
+        fixture.overlay.selectFullRegion()
+        await eventually { fixture.source.startCount == 1 && fixture.hud.isVisible }
+        fixture.source.send(try fixture.frame(rows: 0..<6))
+        await eventually { fixture.hud.state == .ready(sectionCount: 1) }
+        fixture.hud.finish()
+        await eventually { fixture.app.lastDocument?.workflow == .scroll }
+
+        XCTAssertTrue(try XCTUnwrap(fixture.app.lastDocument).isPrivate)
+        XCTAssertNil(fixture.app.appSettings.lastRegion)
+    }
+
     private func eventually(_ predicate: @escaping @MainActor () -> Bool) async {
         for _ in 0..<200 {
             if predicate() { return }
@@ -140,6 +209,9 @@ private final class IntegrationScrollingSource: ScrollingFrameSource {
     private var continuation: AsyncThrowingStream<ScrollingCaptureFrame, Error>.Continuation?
     private(set) var startCount = 0
     private(set) var stopCount = 0
+    private(set) var stopHasBegun = false
+    var pauseStop = false
+    private var stopContinuation: CheckedContinuation<Void, Never>?
     func start(for region: CaptureRegionReference) async throws -> AsyncThrowingStream<ScrollingCaptureFrame, Error> {
         startCount += 1
         return AsyncThrowingStream(bufferingPolicy: .bufferingNewest(3)) { continuation = $0 }
@@ -147,10 +219,19 @@ private final class IntegrationScrollingSource: ScrollingFrameSource {
     func stop() async {
         guard let continuation else { return }
         stopCount += 1
+        stopHasBegun = true
+        if pauseStop {
+            await withCheckedContinuation { stopContinuation = $0 }
+        }
         self.continuation = nil
         continuation.finish()
     }
     func send(_ frame: ScrollingCaptureFrame) { continuation?.yield(frame) }
+    func resumeStop() {
+        pauseStop = false
+        stopContinuation?.resume()
+        stopContinuation = nil
+    }
 }
 
 @MainActor

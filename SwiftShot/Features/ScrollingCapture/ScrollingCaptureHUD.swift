@@ -32,9 +32,9 @@ enum ScrollingCaptureHUDState: Equatable, Sendable {
             ScrollingCaptureHUDPresentation(headline: "Scroll a little slower",
                                             detail: "The last view didn’t overlap enough.",
                                             showsProgress: false, finishEnabled: true)
-        case .terminal(let reason, _):
+        case .terminal(let reason, let sectionCount):
             ScrollingCaptureHUDPresentation(headline: "Capture paused", detail: reason,
-                                            showsProgress: false, finishEnabled: true)
+                                            showsProgress: false, finishEnabled: sectionCount > 0)
         case .finishing(let sectionCount):
             ScrollingCaptureHUDPresentation(headline: "Finishing…", detail: sectionLabel(sectionCount),
                                             showsProgress: true, finishEnabled: false)
