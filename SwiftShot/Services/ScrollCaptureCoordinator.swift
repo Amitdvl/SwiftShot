@@ -43,6 +43,12 @@ final class ScrollCaptureCoordinator {
     private var acquisitionStopReason: String?
     private var nextScrollPoints: CGFloat
     private(set) var warnings: [String] = []
+    /// Some applications (notably Chromium) expose a web surface without a
+    /// readable accessibility scrollbar. Two confirmed no-movement captures
+    /// after real progress are strong, local evidence of the bottom while one
+    /// stalled wheel alone is not.
+    private var consecutiveEndChecks = 0
+    private var hasVerifiedMovement = false
 
     init(region: ScrollCaptureRegion, limits: ScrollCaptureLimits = ScrollCaptureLimits(),
          timing: ScrollCaptureTiming = ScrollCaptureTiming(), acquire: @escaping Acquisition,
@@ -139,7 +145,7 @@ final class ScrollCaptureCoordinator {
             try ensureAvailable()
             try await driver.validateTarget()
             try ensureAvailable()
-            let report = try await stitcher.append(settled)
+            var report = try await stitcher.append(settled)
             let scale = CGFloat(settled.image.width) / region.rect.width
             switch report.disposition {
             case .appended:
@@ -150,10 +156,22 @@ final class ScrollCaptureCoordinator {
                 // movement that was actually observed, not merely the wheel
                 // delta that was requested.
                 nextScrollPoints = max(48, min(region.rect.height * 0.68, observed * 1.08))
+                hasVerifiedMovement = true
+                consecutiveEndChecks = 0
             case .unchanged:
                 driver.recordObservedMovement(points: 0)
+                consecutiveEndChecks += 1
             case .rejected, .firstFrame:
                 driver.recordObservedMovement(points: nil)
+            }
+            if report.disposition == .unchanged,
+               driver.isAtEndOfContent() != true,
+               hasVerifiedMovement,
+               consecutiveEndChecks == 1 {
+                // A smaller follow-up avoids mistaking a dropped or coalesced
+                // wheel event for the end of the document.
+                report.isEndCheck = true
+                nextScrollPoints = max(48, nextScrollPoints * 0.5)
             }
             record(report)
             onProgress(report, await stitcher.statistics())
@@ -163,9 +181,13 @@ final class ScrollCaptureCoordinator {
                 continue
             case .unchanged:
                 // A native scrollbar at its maximum is a clean completion. A
-                // target without metrics stops conservatively with an explicit
-                // ambiguity warning rather than claiming a complete document.
+                // target without metrics gets one small retry after verified
+                // movement. This covers Chromium AXWebArea surfaces that do
+                // not publish a scrollbar while still refusing to claim
+                // completion after a single stalled wheel.
                 if driver.isAtEndOfContent() == true { return }
+                if hasVerifiedMovement, consecutiveEndChecks >= 2 { return }
+                if report.isEndCheck { continue }
                 addWarning(ScrollCaptureIssue.ambiguousContent.localizedDescription)
                 return
             case .rejected, .firstFrame:

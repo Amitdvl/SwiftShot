@@ -57,7 +57,7 @@ struct ScrollCapturePanelView: View {
                     .disabled(model.busy || model.frameCount == 0)
             }
             HStack {
-                Text("Automatic first · local processing only")
+                Text("Auto finishes after a verified end · local processing only")
                     .font(.caption2).foregroundStyle(.secondary)
                 Spacer()
                 Button("Cancel", role: .cancel, action: cancel)

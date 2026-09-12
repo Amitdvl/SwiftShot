@@ -127,7 +127,7 @@ final class NativeScrollWheelDeliveryTests: XCTestCase {
         XCTAssertEqual(environment.restorationFlags, [false, true])
         XCTAssertEqual(environment.pointerMoves, [point, CGPoint(x: 3, y: 4)])
         XCTAssertEqual(environment.focusRestorations, 1)
-        XCTAssertTrue(warning?.contains("cannot be verified") == true)
+        XCTAssertNil(warning)
     }
 
     func testPointerChangedDuringReverseDispatchSuppressesRemainingCleanup() async throws {

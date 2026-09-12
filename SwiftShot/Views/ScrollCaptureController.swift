@@ -169,8 +169,10 @@ final class ScrollCaptureController: NSObject, NSWindowDelegate {
                 model.status = "Stopped. Review the partial capture before finishing."
             } else if coordinator.warnings.isEmpty {
                 // Accessibility/native scrolling is optional. Keep the first
-                // frame usable when manual capture can still finish the job.
-                model.status = "Auto-scrolling is unavailable for this target. Scroll manually, then Add Frame."
+                // frame usable when manual capture can still finish the job,
+                // but keep the concrete cause visible instead of replacing it
+                // with an unhelpful generic failure.
+                model.status = "\(error.localizedDescription) Scroll manually, then Add Frame."
             } else {
                 show(error, id: id)
             }
@@ -178,7 +180,15 @@ final class ScrollCaptureController: NSObject, NSWindowDelegate {
         guard sessionID == id else { return }
         model.warnings = coordinator.warnings
         model.automatic = false
-        model.busy = false
+        // CleanShot's useful contract is one action in, one finished image
+        // out. Once Auto has trustworthy end evidence, remove the extra Finish
+        // click and open the normal editor immediately. Any warning keeps the
+        // partial result reviewable in the panel instead.
+        if coordinator.warnings.isEmpty, model.frameCount > 0 {
+            await finishAutomatically(id: id, coordinator: coordinator, model: model)
+        } else {
+            model.busy = false
+        }
     }
 
     private func stop(reason: String = "Auto stopped. Review the partial result before finishing.", terminal: Bool = false) {
@@ -199,22 +209,28 @@ final class ScrollCaptureController: NSObject, NSWindowDelegate {
         model.status = "Flattening verified frames…"
         work = Task { [weak self] in
             guard let self else { return }
-            do {
-                let result = try await coordinator.finish()
-                guard self.sessionID == id else { return }
-                let callback = self.onResult
-                self.sessionID = nil
-                self.closePanel()
-                self.coordinator = nil
-                self.model = nil
-                self.onResult = nil
-                self.onCancel = nil
-                self.work = nil
-                callback?(result)
-            } catch {
-                self.show(error, id: id)
-                self.finishedWork(id: id)
-            }
+            await self.finishAutomatically(id: id, coordinator: coordinator, model: model)
+        }
+    }
+
+    private func finishAutomatically(id: UUID, coordinator: ScrollCaptureCoordinator, model: ScrollCapturePanelModel) async {
+        model.busy = true
+        model.status = "Finishing verified capture…"
+        do {
+            let result = try await coordinator.finish()
+            guard sessionID == id else { return }
+            let callback = onResult
+            sessionID = nil
+            closePanel()
+            self.coordinator = nil
+            self.model = nil
+            onResult = nil
+            onCancel = nil
+            work = nil
+            callback?(result)
+        } catch {
+            show(error, id: id)
+            finishedWork(id: id)
         }
     }
 
@@ -234,7 +250,8 @@ final class ScrollCaptureController: NSObject, NSWindowDelegate {
         case .firstFrame: model.status = "Preparing automatic scrolling…"
         case .appended:
             model.status = "Added \(report.addedRows) verified rows."
-        case .unchanged: model.status = "End of content detected. Review the result or Finish."
+        case .unchanged:
+            model.status = report.isEndCheck ? "Checking the end of the page…" : "End of content detected. Finishing capture…"
         case .rejected: model.status = report.issue?.localizedDescription ?? "The uncertain frame was not added."
         }
     }

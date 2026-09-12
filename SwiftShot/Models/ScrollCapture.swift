@@ -52,6 +52,10 @@ struct ScrollAppendReport: Sendable {
     var addedRows = 0
     var stickyHeaderRows = 0
     var stickyFooterRows = 0
+    /// The first unchanged frame after verified movement is a lightweight end
+    /// check, not a finished result. The coordinator follows it with one small
+    /// scroll request before it declares the document complete.
+    var isEndCheck = false
     var issue: ScrollCaptureIssue?
 }
 

@@ -228,7 +228,7 @@ final class ScrollCaptureAsyncLifecycleTests: XCTestCase {
         XCTAssertEqual(environment.purposes.filter { $0 == .pageRestoration }.count, 1)
         XCTAssertEqual(environment.pointerMoves, [environment.targetPoint, environment.originalPoint])
         XCTAssertEqual(environment.focusRestorations, 1)
-        XCTAssertTrue(warning?.contains("cannot be verified") == true)
+        XCTAssertNil(warning)
     }
 
     // Break: cancellation after actual dispatch is checked before pending movement is recorded.

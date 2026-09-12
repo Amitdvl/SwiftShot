@@ -287,6 +287,29 @@ final class ScrollStitcherTests: XCTestCase {
         XCTAssertEqual(result.image.height, 310)
     }
 
+    @MainActor
+    func testAutomaticCoordinatorConfirmsEndWithoutScrollbarAfterVerifiedMovement() async throws {
+        let initial = ScrollCaptureFrame(image: try image(width: 96, height: 240, offset: 0))
+        let moved = ScrollCaptureFrame(image: try image(width: 96, height: 240, offset: 70))
+        // Chromium can expose AXWebArea without an AX scrollbar. A second,
+        // smaller stable no-movement check provides completion evidence after
+        // an accepted scroll, rather than leaving a needless partial warning.
+        let frames = ScrollTestFrameQueue([initial, moved, moved, moved, moved, moved, moved])
+        let driver = ScrollTestDriver()
+        driver.atEndOfContent = nil
+        let coordinator = ScrollCaptureCoordinator(region: testRegion(),
+            timing: ScrollCaptureTiming(settlingDelay: .zero, stabilityDelay: .zero),
+            acquire: { _ in try frames.next() }, driver: driver)
+        _ = try await coordinator.start()
+        try await coordinator.runAutomatic { _, _ in }
+        let result = try await coordinator.finish()
+        XCTAssertTrue(result.isComplete)
+        XCTAssertTrue(result.warnings.isEmpty)
+        XCTAssertEqual(result.image.height, 310)
+        XCTAssertEqual(driver.scrolls, 3)
+        XCTAssertEqual(driver.observedMovements.compactMap { $0 }, [70, 0, 0])
+    }
+
     func testMinorCaptureNoiseDoesNotRejectAStablePair() async throws {
         let stitcher = ScrollStitcher()
         let original = try image(width: 96, height: 240, offset: 0)

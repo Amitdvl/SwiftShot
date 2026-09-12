@@ -139,8 +139,13 @@ final class NativeScrollCaptureDriver: ScrollCaptureDriving {
 
     func begin(in region: ScrollCaptureRegion) async throws {
         try Task.checkCancellation()
-        guard phase == .idle, generation == nil, operationID == nil,
-              environment.hasAccess(), let pointer = environment.pointerLocation(),
+        guard phase == .idle, generation == nil, operationID == nil else {
+            throw CaptureError.failed("The automatic scrolling target is unavailable.")
+        }
+        guard environment.hasAccess() else {
+            throw CaptureError.failed("Allow SwiftShot in Accessibility and Input Monitoring to use Auto. You can still scroll manually and add frames.")
+        }
+        guard let pointer = environment.pointerLocation(),
               pointer.x.isFinite, pointer.y.isFinite else {
             throw CaptureError.failed("The automatic scrolling target is unavailable.")
         }
@@ -232,7 +237,6 @@ final class NativeScrollCaptureDriver: ScrollCaptureDriving {
                 let receipt = try await prepare(.pageRestoration, target: target, lease: lease,
                     phase: .restoring, pointer: target.point, restoring: true)
                 guard environment.postWheel(delta, using: receipt, restoring: true) else { throw loseTarget() }
-                notices.append("Page-position restoration was requested but cannot be verified; check the original app.")
             }
             let pointerReceipt = try await prepare(.pointerRestoration, target: target, lease: lease,
                 phase: .restoring, pointer: target.point, restoring: true)
