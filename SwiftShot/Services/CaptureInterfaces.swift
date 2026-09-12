@@ -95,20 +95,6 @@ extension CapturePresenting {
     func configure(actions: CaptureActions) {}
 }
 
-/// Scrolling owns its panel and in-flight restoration independently of the
-/// editor. AppState coordinates navigation through this presentation boundary.
-@MainActor
-protocol ScrollCapturePresenting: AnyObject {
-    var isActive: Bool { get }
-    var hasCapturedFrames: Bool { get }
-    func start(region: ScrollCaptureRegion, onResult: @escaping (ScrollCaptureResult) -> Void,
-               onCancel: @escaping () -> Void)
-    func cancel()
-    func cancelAndWait() async
-}
-
-extension ScrollCaptureController: ScrollCapturePresenting {}
-
 @MainActor
 protocol FloatingCapturePresenting: AnyObject {
     func showRecent(document: CaptureDocument, backgroundURL: URL?, renderedImage: CGImage?,

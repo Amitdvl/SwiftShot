@@ -4,37 +4,6 @@ import XCTest
 
 @MainActor
 final class FolderNavigationTests: XCTestCase {
-    func testFolderNavigationCannotInvalidatePendingScrollingResult() async throws {
-        let fixture = try FolderNavigationFixture()
-        defer { fixture.cleanUp() }
-        let picker = FolderNavigationPicker(result: nil)
-        let scrolling = FolderNavigationScrollingPresenter()
-        let presenter = FolderNavigationCapturePresenter()
-        let app = fixture.state(picker: picker, scrolling: scrolling, presenter: presenter)
-
-        await app.capture(mode: .region, privateCapture: true, scrollingCapture: true)
-        try presenter.selectRegion()
-        XCTAssertEqual(app.phase, .scrolling)
-        XCTAssertNil(app.lastDocument)
-        let dismissals = presenter.dismissals
-
-        app.chooseSaveDirectory()
-
-        XCTAssertEqual(picker.invocations, 0, "Active scrolling must not open a native folder dialog")
-        XCTAssertEqual(app.phase, .scrolling, "Folder navigation must preserve the active session")
-        XCTAssertEqual(presenter.dismissals, dismissals)
-        scrolling.complete(image: fixture.image)
-        XCTAssertEqual(app.phase, .editing)
-        let result = try XCTUnwrap(app.lastDocument, "The original scrolling result callback must remain authorized")
-        XCTAssertTrue(presenter.activeDocument === result)
-        XCTAssertTrue(result.isPrivate)
-        XCTAssertEqual(result.workflow, .scroll)
-        XCTAssertEqual(result.image.width, 120)
-        XCTAssertEqual(result.image.height, 80)
-        let quit = await app.prepareToQuit()
-        XCTAssertTrue(quit)
-    }
-
     func testFolderNavigationCannotOpenPickerAfterShutdownBegins() async throws {
         let fixture = try FolderNavigationFixture()
         defer { fixture.cleanUp() }
@@ -85,13 +54,11 @@ private struct FolderNavigationFixture {
     }
 
     func state(picker: FolderNavigationPicker,
-               scrolling: FolderNavigationScrollingPresenter = FolderNavigationScrollingPresenter(),
                presenter: FolderNavigationCapturePresenter = FolderNavigationCapturePresenter()) -> AppState {
         AppState(defaults: defaults, recovery: RecoveryStore(root: root.appendingPathComponent("recovery")),
             backgrounds: BackgroundLibrary(rootURL: root.appendingPathComponent("backgrounds")), presentsUI: false,
             persistUnsavedCaptures: true,
-            captureService: FolderNavigationCaptureService(image: image), overlay: presenter,
-            scrolling: scrolling, directoryPicker: picker)
+            captureService: FolderNavigationCaptureService(image: image), overlay: presenter, directoryPicker: picker)
     }
 
     func cleanUp() {
@@ -106,22 +73,6 @@ private final class FolderNavigationPicker: CaptureDirectoryPicking {
     private(set) var invocations = 0
     init(result: URL?) { self.result = result }
     func chooseDirectory() -> URL? { invocations += 1; return result }
-}
-
-@MainActor
-private final class FolderNavigationScrollingPresenter: ScrollCapturePresenting {
-    private var onResult: ((ScrollCaptureResult) -> Void)?
-    var isActive: Bool { onResult != nil }
-    var hasCapturedFrames: Bool { isActive }
-    func start(region: ScrollCaptureRegion, onResult: @escaping (ScrollCaptureResult) -> Void,
-               onCancel: @escaping () -> Void) { self.onResult = onResult }
-    func cancel() { onResult = nil }
-    func cancelAndWait() async { cancel() }
-    func complete(image: CGImage) {
-        let callback = onResult
-        onResult = nil
-        callback?(ScrollCaptureResult(image: image, isComplete: true, warnings: []))
-    }
 }
 
 @MainActor

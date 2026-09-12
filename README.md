@@ -27,7 +27,6 @@ For the shortest path, **Quick Copy Region** copies your selection before restor
 - Open saved captures from local history, search indexed text, and manage pins and retention.
 - Keep a resizable capture floating on screen, or combine captures vertically or side by side.
 - Recapture the last region or use the available Apple Shortcuts actions.
-- Use manual or automatic scrolling capture. If content changes or overlap cannot be verified, SwiftShot stops and warns about an incomplete result; inspect it before sharing.
 
 ## Build and run
 

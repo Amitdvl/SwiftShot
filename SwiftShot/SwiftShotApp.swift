@@ -101,7 +101,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let moreMenu = NSMenu(title: "More Capture Options")
         moreMenu.autoenablesItems = false
         moreMenu.addItem(actionItem("Copy Text from Screen", action: #selector(captureText(_:))))
-        moreMenu.addItem(actionItem("Scrolling Capture…", action: #selector(captureScrolling(_:))))
         let recapture = actionItem("Recapture Last Region", action: #selector(recaptureLastRegion(_:)))
         recapture.isEnabled = AppState.shared.lastRegion != nil && !AppState.shared.isCapturing
         moreMenu.addItem(recapture)
@@ -142,10 +141,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func captureText(_ sender: Any?) {
         Task { _ = await AppState.shared.capture(mode: .ocr) }
-    }
-
-    @objc private func captureScrolling(_ sender: Any?) {
-        Task { _ = await AppState.shared.capture(mode: .region, scrollingCapture: true) }
     }
 
     @objc private func recaptureLastRegion(_ sender: Any?) {

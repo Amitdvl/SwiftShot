@@ -6,9 +6,9 @@ import OSLog
 @MainActor @Observable
 final class AppState {
     static let shared = AppState()
-    enum Phase: String { case idle, freezing, editing, scrolling }
+    enum Phase: String { case idle, freezing, editing }
     private(set) var phase: Phase = .idle
-    var isCapturing: Bool { phase == .freezing || phase == .scrolling }
+    var isCapturing: Bool { phase == .freezing }
     var appSettings: AppSettings
     var statusMessage: String?
     var shortcutErrors: [String: String] = [:]
@@ -23,7 +23,6 @@ final class AppState {
     private let recoveryCoordinator: RecoveryCoordinator
     private let indexing: HistoryIndexingCoordinator
     private let floatingCaptures: any FloatingCapturePresenting
-    private let scrolling: any ScrollCapturePresenting
     private let directoryPicker: any CaptureDirectoryPicking
     private let combiner = CaptureCombiner()
     private var historyWindow: HistoryWindowController?
@@ -93,7 +92,6 @@ final class AppState {
          captureService: any ScreenCaptureProviding = ScreenCaptureService.shared,
          renderer: any CaptureRendering = ImageRenderer(), textRecognizer: any TextRecognizing = OCRService.shared,
          overlay: any CapturePresenting = CaptureOverlayController(),
-         scrolling: (any ScrollCapturePresenting)? = nil,
          directoryPicker: any CaptureDirectoryPicking = NativeCaptureDirectoryPicker(),
          diagnostics: PerformanceDiagnostics? = .shared,
          recoveryCoordinator: RecoveryCoordinator? = nil,
@@ -116,9 +114,6 @@ final class AppState {
         self.diagnostics = diagnostics
         self.directoryPicker = directoryPicker
         self.floatingCaptures = floatingCaptures ?? FloatingCaptureController(renderer: renderer)
-        self.scrolling = scrolling ?? ScrollCaptureController(acquire: { region in
-            ScrollCaptureFrame(image: try await captureService.captureRegion(displayID: region.displayID, rect: region.rect))
-        })
         let initialSettings: AppSettings
         if let data = defaults.data(forKey: "com.swiftshot.settings"), let settings = try? JSONDecoder().decode(AppSettings.self, from: data) {
             initialSettings = settings
@@ -153,25 +148,22 @@ final class AppState {
     /// Reports this request's selector handoff, not an unrelated editor's current phase.
     /// Does not await later interactive selection, Copy, or OCR completion.
     @discardableResult
-    func capture(mode: CaptureMode, quickCopy: Bool = false, privateCapture: Bool? = nil, scrollingCapture: Bool = false,
+    func capture(mode: CaptureMode, quickCopy: Bool = false, privateCapture: Bool? = nil,
                  respectImmediatePreference: Bool = true) async -> Bool {
-        guard phase != .freezing, phase != .scrolling, !isQuitting, !Task.isCancelled else { return false }
+        guard phase != .freezing, !isQuitting, !Task.isCancelled else { return false }
         let performanceRun = diagnostics?.activeRunID
         diagnostics?.mark(.captureRequested, for: performanceRun)
         CaptureLatencyTrace.shared.mark(.captureRequested, for: performanceRun)
         let returnApplication = focusTracker.destination()
-        let copyImmediately = !scrollingCapture && mode != .ocr && (quickCopy || (respectImmediatePreference && appSettings.immediateCopy))
+        let copyImmediately = mode != .ocr && (quickCopy || (respectImmediatePreference && appSettings.immediateCopy))
         let privateForSession = privateCapture ?? appSettings.privateCapture
-        let workflow: CaptureWorkflow = scrollingCapture ? .scroll : copyImmediately ? .quickCopy : CaptureWorkflow(rawValue: mode.rawValue) ?? .region
+        let workflow: CaptureWorkflow = copyImmediately ? .quickCopy : CaptureWorkflow(rawValue: mode.rawValue) ?? .region
         let style = appSettings.style(for: workflow)
         phase = .freezing
         let token = beginSession()
         // Freeze interaction before handing off the final immutable revision.
         overlay.dismiss()
         diagnostics?.setCaptureHidden(true)
-        CaptureLatencyTrace.shared.mark(.scrollDrainStarted, for: performanceRun)
-        if scrolling.isActive { await scrolling.cancelAndWait() }
-        CaptureLatencyTrace.shared.mark(.scrollDrainFinished, for: performanceRun)
         guard token == sessionID else { return false }
         // Check admission without changing coordinator state before starting
         // the provider. A capacity failure must not launch a new capture.
@@ -237,18 +229,14 @@ final class AppState {
                     return window
                 },
                 switchMode: { [weak self] next in
-                    guard !scrollingCapture else { return }
                     Task { await self?.capture(mode: next, quickCopy: copyImmediately, privateCapture: privateForSession, respectImmediatePreference: false) }
                 },
                 selectedRegion: { [weak self] screen, crop in
                     guard mode == .region else { return }
                     guard let self, let region = CaptureRegionReference(screen: screen, crop: crop, isPrivate: privateForSession) else { return }
-                    if scrollingCapture { self.startScrolling(region: region, style: style) }
-                    else {
-                        self.lastRegion = region
-                        self.appSettings.lastRegion = region.isPrivate ? nil : region
-                        self.saveSettings()
-                    }
+                    self.lastRegion = region
+                    self.appSettings.lastRegion = region.isPrivate ? nil : region
+                    self.saveSettings()
                 },
                 pin: { [weak self] document in Task { await self?.pin(document) } },
                 copySmaller: { [weak self] document in Task { await self?.copy(document, smaller: true) } },
@@ -265,7 +253,7 @@ final class AppState {
             CaptureLatencyTrace.shared.mark(.overlayPresentationStarted, for: performanceRun)
             overlay.present(screens: screens, mode: mode, style: style, library: backgrounds,
                 onDocument: { [weak self] document in
-                    guard let self, self.sessionID == token, !scrollingCapture else { return }
+                    guard let self, self.sessionID == token else { return }
                     document.performanceRunID = performanceRun
                     self.diagnostics?.updatePixels(input: .init(width: Int(document.edits.crop.width), height: Int(document.edits.crop.height)), for: performanceRun)
                     if mode == .region, document.sourceRegion == nil { document.sourceRegion = self.lastRegion }
@@ -291,7 +279,7 @@ final class AppState {
                 }
             }
             report(error.localizedDescription, retry: { [weak self] in
-                Task { await self?.capture(mode: mode, quickCopy: copyImmediately, privateCapture: privateForSession, scrollingCapture: scrollingCapture, respectImmediatePreference: false) }
+                Task { await self?.capture(mode: mode, quickCopy: copyImmediately, privateCapture: privateForSession, respectImmediatePreference: false) }
             }, openSettings: openSettings)
             return false
         }
@@ -341,7 +329,6 @@ final class AppState {
     }
 
     func closeEditor() {
-        guard phase != .scrolling else { return }
         if persistUnsavedCaptures, let document = lastDocument { Task { await enqueueRecovery(document) } }
         overlay.dismiss()
         if !isQuitting { floatingCaptures.setCaptureHidden(false) }
@@ -352,7 +339,7 @@ final class AppState {
     }
 
     func reopenLastCapture() async {
-        guard !isQuitting, phase != .scrolling else { return }
+        guard !isQuitting else { return }
         let performanceRun = diagnostics?.activeRunID
         diagnostics?.mark(.historyRequested, for: performanceRun)
         if let document = lastDocument {
@@ -369,7 +356,7 @@ final class AppState {
     }
 
     func reopenRecovery(_ id: UUID) async {
-        guard !isQuitting, phase != .scrolling else { return }
+        guard !isQuitting else { return }
         let performanceRun = diagnostics?.activeRunID
         diagnostics?.mark(.historyRequested, for: performanceRun)
         let token = beginSession()
@@ -395,7 +382,7 @@ final class AppState {
     }
 
     private func reopen(_ document: CaptureDocument) {
-        guard !isQuitting, phase != .scrolling else { return }
+        guard !isQuitting else { return }
         let token = beginSession()
         overlay.dismiss()
         NotificationService.dismiss()
@@ -719,10 +706,6 @@ final class AppState {
 
     func prepareToQuit() async -> Bool {
         guard !isQuitting else { return false }
-        guard phase != .scrolling else {
-            report("Finish or explicitly cancel the scrolling capture before quitting, so its pending frames are not lost.")
-            return false
-        }
         isQuitting = true
         invalidateIndexingAdmission()
         // Cancel only the read-only observers, without forgetting their handles.
@@ -733,7 +716,6 @@ final class AppState {
         overlay.dismiss()
         _ = beginSession()
         phase = .idle
-        if scrolling.isActive { await scrolling.cancelAndWait() }
         while exportCoordinator.hasActiveExports { try? await Task.sleep(for: .milliseconds(25)) }
         for task in persistenceTasks.values { task.cancel() }
         persistenceTasks.removeAll(); persistenceTokens.removeAll()
@@ -812,7 +794,7 @@ final class AppState {
 
     @discardableResult
     func captureLastRegion(quickCopy: Bool = false, respectImmediatePreference: Bool = true) async -> Bool {
-        guard !isQuitting, phase != .freezing, phase != .scrolling else { return false }
+        guard !isQuitting, phase != .freezing else { return false }
         guard let region = lastRegion, region.isValid else { report("Select a region once before recapturing it."); return false }
         guard let displayFrame = captureService.currentDisplayFrame(id: region.displayID), displayFrame == region.displayFrame else {
             report("The last region's display layout changed. Select a new region."); return false
@@ -827,7 +809,6 @@ final class AppState {
         phase = .freezing
         overlay.dismiss()
         diagnostics?.setCaptureHidden(true)
-        if scrolling.isActive { await scrolling.cancelAndWait() }
         if let document = lastDocument, shouldPersist(document),
            recoveryAdmission?.matches(document, recoverySnapshot(document)) != true,
            !(await recoveryCoordinator.canEnqueue(recoverySnapshot(document))) {
@@ -965,7 +946,7 @@ final class AppState {
     }
 
     func combineHistory(_ ids: [UUID], axis: HistoryCombineAxis) async throws {
-        guard !isQuitting, phase != .scrolling, phase != .freezing else { throw CaptureError.failed("Finish the current capture before combining history.") }
+        guard !isQuitting, phase != .freezing else { throw CaptureError.failed("Finish the current capture before combining history.") }
         let privateForSession = appSettings.privateCapture
         let style = appSettings.style(for: .combine)
         let token = beginSession()
@@ -1024,7 +1005,7 @@ final class AppState {
     }
 
     private func editFloatingSnapshot(_ document: CaptureDocument) async {
-        guard !isQuitting, phase != .scrolling else { return }
+        guard !isQuitting else { return }
         let token = beginSession()
         overlay.dismiss()
         if let current = lastDocument, shouldPersist(current), !(await enqueueRecovery(current)) {
@@ -1053,26 +1034,6 @@ final class AppState {
         }
     }
 
-    private func startScrolling(region: CaptureRegionReference, style: CaptureStyle) {
-        let token = beginSession()
-        overlay.dismiss()
-        phase = .scrolling
-        scrolling.start(region: ScrollCaptureRegion(displayID: region.displayID, displayFrame: region.displayFrame, rect: region.rect),
-            onResult: { [weak self] result in
-                guard let self, self.sessionID == token else { return }
-                self.phase = .idle
-                let document = CaptureDocument(image: result.image, style: style)
-                self.documentChanged(document, immediate: false, privateCapture: region.isPrivate, workflow: .scroll)
-                self.reopen(document)
-                if !result.isComplete { self.showStatus("Partial scrolling capture: " + result.warnings.joined(separator: " "), for: document, isError: true) }
-            }, onCancel: { [weak self] in
-                guard let self, self.sessionID == token else { return }
-                self.phase = .idle
-                self.floatingCaptures.setCaptureHidden(false)
-                self.statusMessage = nil
-            })
-    }
-
     func performIntent(_ action: CaptureIntentAction) async throws {
         try Task.checkCancellation()
         guard !isQuitting, !isCapturing else { throw CaptureError.failed("Finish the current capture before starting this action.") }
@@ -1092,10 +1053,6 @@ final class AppState {
 
     func chooseSaveDirectory(retryDocument: CaptureDocument? = nil) {
         guard !isQuitting else { return }
-        guard phase != .scrolling else {
-            report("Finish or explicitly cancel the scrolling capture before choosing a save folder, so its pending frames are not lost.")
-            return
-        }
         _ = beginSession()
         let current = overlay.activeDocument
         overlay.dismiss()
