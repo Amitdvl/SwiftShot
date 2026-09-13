@@ -363,7 +363,7 @@ final class RenderPipelineTests: XCTestCase {
         XCTAssertEqual(alpha[20 * result.image.bytesPerRow + 40 * 4 + 3], 128)
     }
 
-    func testOverlappingSpotlightsLeaveUnionUndimmed() async throws {
+    func testOverlappingSpotlightsUseUniformUnionIllumination() async throws {
         let source = fixture()
         let annotations = [
             CaptureAnnotation(kind: .spotlight, start: CGPoint(x: 10, y: 10), end: CGPoint(x: 40, y: 30)),
@@ -371,17 +371,15 @@ final class RenderPipelineTests: XCTestCase {
         ]
         let result = try await ImageRenderer().renderImage(RenderRequest(image: source,
             edits: CaptureEdits(crop: CGRect(x: 0, y: 0, width: 80, height: 40), annotations: annotations), backgroundURL: nil))
-        let original = source.dataProvider!.data! as Data
-        let output = result.dataProvider!.data! as Data
-        for x in [20, 35, 50] {
-            let src = 20 * source.bytesPerRow + x * 4
-            let dst = 20 * result.bytesPerRow + x * 4
-            XCTAssertEqual(output[dst..<dst + 4], original[src..<src + 4])
-        }
-        XCTAssertNotEqual(output[0..<4], original[0..<4])
+        let left = try rgbaPixel(result, x: 20, y: 20)
+        let overlap = try rgbaPixel(result, x: 35, y: 20)
+        let right = try rgbaPixel(result, x: 50, y: 20)
+        XCTAssertEqual(left, overlap, "Overlapping spotlights must not brighten their intersection twice")
+        XCTAssertEqual(overlap, right, "The full spotlight union needs one uniform illumination")
+        XCTAssertNotEqual(left, try rgbaPixel(source, x: 20, y: 20))
     }
 
-    func testSpotlightDrawsVisibleEdgeOnBlackCapture() async throws {
+    func testSpotlightIlluminatesSelectionOnBlackCapture() async throws {
         let source = try rgbaFixture(width: 80, height: 40, rgba: [0, 0, 0, 255])
         let annotation = CaptureAnnotation(kind: .spotlight,
             start: CGPoint(x: 20, y: 10), end: CGPoint(x: 60, y: 30))
@@ -391,10 +389,30 @@ final class RenderPipelineTests: XCTestCase {
 
         let edge = try rgbaPixel(result, x: 20, y: 20)
         XCTAssertGreaterThan(edge[0], 80, "A dark capture needs a visible spotlight boundary")
-        XCTAssertEqual(try rgbaPixel(result, x: 40, y: 20), [0, 0, 0, 255],
-            "The spotlight must preserve the selected image content")
+        let center = try rgbaPixel(result, x: 40, y: 20)
+        XCTAssertGreaterThan(center[0], 32, "The selected area must remain visible against a black surround")
+        XCTAssertEqual(center[0], center[1])
+        XCTAssertEqual(center[1], center[2])
+        XCTAssertEqual(center[3], 255)
         XCTAssertEqual(try rgbaPixel(result, x: 0, y: 20), [0, 0, 0, 255],
-            "The contrast treatment must stay on the spotlight boundary")
+            "The illumination must stay inside the spotlight")
+    }
+
+    @MainActor func testSpotlightIlluminatesBlackCaptureInEditorPreview() throws {
+        let source = try rgbaFixture(width: 80, height: 40, rgba: [0, 0, 0, 255])
+        let crop = CGRect(x: 0, y: 0, width: 80, height: 40)
+        let annotation = CaptureAnnotation(kind: .spotlight,
+            start: CGPoint(x: 20, y: 10), end: CGPoint(x: 60, y: 30))
+        let previewRenderer = SwiftUI.ImageRenderer(content: ZStack {
+            Image(decorative: source, scale: 1).resizable().interpolation(.none)
+            AnnotationCanvasView(annotations: [annotation], crop: crop)
+        }.frame(width: 80, height: 40))
+        previewRenderer.scale = 1
+        let preview = try XCTUnwrap(previewRenderer.cgImage)
+
+        XCTAssertGreaterThan(try rgbaPixel(preview, x: 40, y: 20)[0], 32,
+            "The editor must show the illumination while drawing on a dark capture")
+        XCTAssertEqual(try rgbaPixel(preview, x: 0, y: 20), [0, 0, 0, 255])
     }
 
     func testSixteenBitSourceKeepsPrecisionThroughAnnotationsAndPNG() async throws {

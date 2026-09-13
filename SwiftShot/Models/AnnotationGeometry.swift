@@ -96,7 +96,7 @@ enum AnnotationGeometry {
 /// bottom-left CGContext; all annotations remain original-image top-left pixels.
 enum AnnotationDrawing {
     static func draw(annotations: [CaptureAnnotation], in context: CGContext, crop: CGRect, destination: CGRect,
-                     includeRedactions: Bool = true) {
+                     includeRedactions: Bool = true, sourceIsInContext: Bool = true) {
         context.saveGState()
         defer { context.restoreGState() }
         context.clip(to: destination)
@@ -120,9 +120,23 @@ enum AnnotationDrawing {
             context.fill(crop)
             context.restoreGState()
 
-            // A black dimming layer has no contrast against an already-dark
-            // capture. Keep the selected pixels untouched, but outline each
-            // spotlight with its annotation colour so the target stays visible.
+            // Darkening the surround cannot separate a spotlight from pixels
+            // that are already black. Illuminate the complete union once;
+            // export uses source-atop to preserve transparent source alpha,
+            // while the preview paints into its separate transparent overlay.
+            context.saveGState()
+            context.setBlendMode(sourceIsInContext ? .sourceAtop : .normal)
+            context.beginPath()
+            for annotation in spotlights {
+                let covered = annotation.rect.intersection(crop)
+                if !covered.isNull && !covered.isEmpty { context.addRect(covered) }
+            }
+            context.setFillColor(CGColor(gray: 1, alpha: 0.18))
+            context.fillPath()
+            context.restoreGState()
+
+            // The annotation colour and stroke keep the target's boundary
+            // crisp over detailed captures and honor the Spotlight controls.
             context.saveGState()
             context.setLineJoin(.round)
             for annotation in spotlights {
