@@ -21,7 +21,7 @@ final class ScrollingFrameSourceTests: XCTestCase {
         XCTAssertFalse(configuration.scalesToFit)
         XCTAssertTrue(configuration.shouldBeOpaque)
         XCTAssertTrue(CFEqual(configuration.colorSpaceName, CGColorSpace.sRGB as CFString))
-        XCTAssertEqual(CMTimeCompare(configuration.minimumFrameInterval, CMTime(value: 1, timescale: 20)), 0)
+        XCTAssertEqual(CMTimeCompare(configuration.minimumFrameInterval, CMTime(value: 1, timescale: 60)), 0)
     }
 
     func testDefaultConfigurationAndFrameBufferFavorContinuity() throws {
@@ -32,7 +32,7 @@ final class ScrollingFrameSourceTests: XCTestCase {
         XCTAssertEqual(configuration.queueDepth,
                        ScreenCaptureKitScrollingFrameSource.streamQueueDepth)
         XCTAssertEqual(CMTimeCompare(configuration.minimumFrameInterval,
-                                     CMTime(value: 1, timescale: 20)), 0)
+                                     CMTime(value: 1, timescale: 60)), 0)
         XCTAssertEqual(ScreenCaptureKitScrollingFrameSource.bufferedFrameCapacity, 8)
     }
 

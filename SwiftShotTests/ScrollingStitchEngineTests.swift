@@ -143,8 +143,24 @@ final class ScrollingStitchEngineTests: XCTestCase {
         let elapsed = started.duration(to: clock.now)
 
         XCTAssertEqual(result.disposition, .appended(rows: shift))
-        XCTAssertLessThan(elapsed, .milliseconds(50),
+        XCTAssertLessThan(elapsed, .milliseconds(14),
                           "Full-size seam analysis cannot keep up with the live stream: \(elapsed)")
+    }
+
+    func testFullSizeThreeQuarterViewportJumpStillFindsTheFastScrollSeam() async throws {
+        let width = 1_440
+        let viewportHeight = 960
+        let shift = 720
+        let rows = sparseRepeatedPageRows(count: viewportHeight + shift, width: width)
+        let engine = ScrollingStitchEngine()
+        _ = try await engine.ingest(frame(try image(
+            rows: Array(rows[0..<viewportHeight]), width: width)))
+
+        let result = try await engine.ingest(frame(try image(
+            rows: Array(rows[shift..<(viewportHeight + shift)]), width: width)))
+
+        XCTAssertEqual(result.disposition, .appended(rows: shift))
+        XCTAssertEqual(result.progress.outputHeight, viewportHeight + shift)
     }
 
     func testSparseRepeatedPageWithoutRealOverlapCannotAppendAStructuralLookalike() async throws {

@@ -424,8 +424,12 @@ actor ScrollingStitchEngine {
     private static func difference(_ previous: PixelFrame, previousStart: Int,
                                    _ current: PixelFrame, currentStart: Int,
                                    rows: Int, exhaustive: Bool = false) -> Double {
-        let rowStep = exhaustive ? 1 : max(1, rows / 192)
-        let columnStep = exhaustive ? 1 : 2
+        // Candidate discovery only needs enough coverage to rank offsets; every
+        // finalist is still rescored exhaustively and validated against pixels.
+        // Keeping this pass below the source cadence lets 60 Hz bridge frames
+        // reach the stitcher before fast scrolling moves beyond the viewport.
+        let rowStep = exhaustive ? 1 : max(1, rows / 96)
+        let columnStep = exhaustive ? 1 : 4
         let columns = min(previous.signatureColumns, current.signatureColumns)
         var total = 0
         var samples = 0

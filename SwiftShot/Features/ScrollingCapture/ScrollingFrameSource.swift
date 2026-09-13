@@ -57,7 +57,7 @@ final class ScreenCaptureKitScrollingFrameSource: ScrollingFrameSource {
         let configuration = ScreenCaptureService.configuration(size: size, window: false)
         configuration.sourceRect = region.rect
         configuration.queueDepth = queueDepth
-        configuration.minimumFrameInterval = CMTime(value: 1, timescale: 20)
+        configuration.minimumFrameInterval = CMTime(value: 1, timescale: 60)
         return configuration
     }
 
