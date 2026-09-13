@@ -206,7 +206,7 @@ private final class InspectorHitTestingFixture {
                 "SETUP: could not establish the regular, process-local test host")
             window.orderFrontRegardless()
             try await Task.sleep(for: .milliseconds(150))
-            _ = NSRunningApplication.current.activate(options: [])
+            NSApp.activate(ignoringOtherApps: true)
             window.makeKeyAndOrderFront(nil)
             try await Task.sleep(for: .milliseconds(200))
             for _ in 0..<100 {
@@ -451,7 +451,13 @@ private final class InspectorHitTestingFixture {
                 if topDown.width > 0, topDown.height > 0,
                    (allowClipped || CGRect(origin: .zero, size: hosting.bounds.size).contains(topDown)) { found.append(topDown) }
             }
+            // NSHostingView can publish its SwiftUI virtual nodes through the
+            // navigation-order accessor while returning nil from the legacy
+            // children accessor (notably on hosted macOS CI runners). Traverse
+            // both supported collections; `seen` removes any overlap.
             queue.append(contentsOf: accessibilityValue(object, key: "accessibilityChildren") as? [Any] ?? [])
+            queue.append(contentsOf: accessibilityValue(object,
+                key: "accessibilityChildrenInNavigationOrder") as? [Any] ?? [])
         }
         if found.count != 1 {
             print("InspectorHitTesting AX lookup=\(label) found=\(found.count) visited=\(seen.count) remaining=\(queue.count)")
