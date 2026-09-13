@@ -5,15 +5,15 @@ import XCTest
 
 @MainActor
 final class ScrollingFrameSourceTests: XCTestCase {
-    func testInputPacingPreservesFastGestureExtentOneAcceptedFrameAtATime() throws {
+    func testInputPacingPreservesFastGestureExtentOneProcessedFrameAtATime() throws {
         var buffer = ScrollingInputPacer.Buffer()
         buffer.enqueue(-355)
 
         var steps = [Int32]()
         while buffer.pendingPoints != 0 {
             XCTAssertNil(buffer.nextStep(maximumMagnitude: 32),
-                         "Wall-clock ticks must not outrun accepted capture frames")
-            buffer.permitNextStep()
+                         "Wall-clock ticks must not outrun processed capture frames")
+            buffer.frameWasProcessed(.appended(rows: 32))
             steps.append(try XCTUnwrap(buffer.nextStep(maximumMagnitude: 32)))
         }
 
@@ -28,12 +28,38 @@ final class ScrollingFrameSourceTests: XCTestCase {
         buffer.enqueue(-80)
         buffer.enqueue(30)
 
-        buffer.permitNextStep()
+        buffer.frameWasProcessed(.firstFrame)
         XCTAssertEqual(buffer.nextStep(maximumMagnitude: 32), -32)
         XCTAssertNil(buffer.nextStep(maximumMagnitude: 32))
-        buffer.permitNextStep()
+        buffer.frameWasProcessed(.unchanged)
         XCTAssertEqual(buffer.nextStep(maximumMagnitude: 32), -18)
         XCTAssertNil(buffer.nextStep(maximumMagnitude: 32))
+    }
+
+    func testEveryProcessedFrameReleasesBufferedInputWithoutDeadlocking() throws {
+        var buffer = ScrollingInputPacer.Buffer()
+        buffer.enqueue(-96)
+
+        for disposition: ScrollingIngestDisposition in [
+            .firstFrame,
+            .unchanged,
+            .rejected(.insufficientTexture)
+        ] {
+            buffer.frameWasProcessed(disposition)
+            XCTAssertEqual(try XCTUnwrap(buffer.nextStep(maximumMagnitude: 32)), -32)
+        }
+
+        XCTAssertEqual(buffer.pendingPoints, 0)
+    }
+
+    func testMissingFrameDispositionDoesNotReleaseBufferedInput() {
+        var buffer = ScrollingInputPacer.Buffer()
+        buffer.enqueue(-32)
+
+        buffer.frameWasProcessed(nil)
+
+        XCTAssertNil(buffer.nextStep(maximumMagnitude: 32))
+        XCTAssertEqual(buffer.pendingPoints, -32)
     }
 
     func testInputPacingStepScalesWithEveryViewportHeight() {

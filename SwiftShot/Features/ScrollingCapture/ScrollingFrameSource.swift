@@ -6,7 +6,7 @@ import OSLog
 import ScreenCaptureKit
 
 /// Converts arbitrary wheel gestures into capture-acknowledged scroll steps.
-/// One step is released only after the preceding viewport was stitched, so
+/// One step is released only after the preceding viewport was processed, so
 /// capture speed follows actual frame throughput instead of a wall-clock timer.
 @MainActor
 final class ScrollingInputPacer: NSObject {
@@ -19,7 +19,8 @@ final class ScrollingInputPacer: NSObject {
             pendingPoints += points
         }
 
-        mutating func permitNextStep() {
+        mutating func frameWasProcessed(_ disposition: ScrollingIngestDisposition?) {
+            guard disposition != nil else { return }
             stepIsPermitted = true
         }
 
@@ -111,8 +112,8 @@ final class ScrollingInputPacer: NSObject {
         return true
     }
 
-    func permitNextStep() {
-        buffer.permitNextStep()
+    func frameWasProcessed(_ disposition: ScrollingIngestDisposition?) {
+        buffer.frameWasProcessed(disposition)
         emitNextStep()
     }
 

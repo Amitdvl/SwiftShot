@@ -367,12 +367,7 @@ final class AppState {
             scrollingHUD.update(.preparing)
         case let .capturing(progress, disposition):
             scrollingAcceptedFrames = progress.acceptedFrames
-            switch disposition {
-            case .firstFrame?, .appended?:
-                scrollingInputPacer.permitNextStep()
-            default:
-                break
-            }
+            scrollingInputPacer.frameWasProcessed(disposition)
             if progress.acceptedFrames == 0 {
                 scrollingHUD.update(.preparing)
             } else if case .rejected = disposition {
