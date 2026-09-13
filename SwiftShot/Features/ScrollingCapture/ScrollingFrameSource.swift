@@ -5,47 +5,59 @@ import CoreVideo
 import OSLog
 import ScreenCaptureKit
 
-/// Converts arbitrarily large wheel gestures into a short stream of bounded
-/// pixel deltas while scrolling capture is active. The user's full gesture is
-/// preserved; only its delivery rate changes so ScreenCaptureKit can observe
-/// overlapping viewports instead of one uncapturable jump.
+/// Converts arbitrary wheel gestures into capture-acknowledged scroll steps.
+/// One step is released only after the preceding viewport was stitched, so
+/// capture speed follows actual frame throughput instead of a wall-clock timer.
 @MainActor
 final class ScrollingInputPacer: NSObject {
     struct Buffer: Equatable, Sendable {
         private(set) var pendingPoints: Double = 0
+        private(set) var stepIsPermitted = false
 
         mutating func enqueue(_ points: Double) {
             guard points.isFinite else { return }
             pendingPoints += points
         }
 
+        mutating func permitNextStep() {
+            stepIsPermitted = true
+        }
+
         mutating func nextStep(maximumMagnitude: Double) -> Int32? {
-            guard maximumMagnitude.isFinite, maximumMagnitude >= 1,
+            guard stepIsPermitted, maximumMagnitude.isFinite, maximumMagnitude >= 1,
                   abs(pendingPoints) >= 1 else { return nil }
             let magnitude = min(abs(pendingPoints), maximumMagnitude)
             let step = Int32(magnitude.rounded(.down)) * (pendingPoints < 0 ? -1 : 1)
             pendingPoints -= Double(step)
+            stepIsPermitted = false
             return step == 0 ? nil : step
         }
 
-        mutating func reset() { pendingPoints = 0 }
+        mutating func reset() {
+            pendingPoints = 0
+            stepIsPermitted = false
+        }
     }
 
     private static let syntheticMarker: Int64 = 0x5357_5343_524F_4C4C
-    private static let tickInterval: TimeInterval = 1.0 / 120.0
-    private static let maximumPointsPerTick = 32.0
 
     private let logger = Logger(subsystem: "com.swiftshot.app", category: "ScrollingInput")
     private var eventTap: CFMachPort?
     private var eventTapSource: CFRunLoopSource?
-    private var timer: Timer?
     private var buffer = Buffer()
+    private var maximumPointsPerStep = 1.0
     private var latestLocation = CGPoint.zero
     private var latestFlags = CGEventFlags()
 
+    static func maximumStepPoints(viewportHeight: CGFloat) -> Double {
+        guard viewportHeight.isFinite, viewportHeight > 0 else { return 1 }
+        return max(1, min(32, floor(Double(viewportHeight) / 8)))
+    }
+
     @discardableResult
-    func start() -> Bool {
+    func start(viewportHeight: CGFloat) -> Bool {
         stop()
+        maximumPointsPerStep = Self.maximumStepPoints(viewportHeight: viewportHeight)
         let mask = CGEventMask(1) << CGEventType.scrollWheel.rawValue
         let callback: CGEventTapCallBack = { _, type, event, userInfo in
             guard let userInfo else { return Unmanaged.passUnretained(event) }
@@ -73,18 +85,10 @@ final class ScrollingInputPacer: NSObject {
             CFRunLoopAddSource(CFRunLoopGetMain(), eventTapSource, .commonModes)
         }
         CGEvent.tapEnable(tap: tap, enable: true)
-
-        let timer = Timer(timeInterval: Self.tickInterval, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.emitNextStep() }
-        }
-        self.timer = timer
-        RunLoop.main.add(timer, forMode: .common)
         return true
     }
 
     func stop() {
-        timer?.invalidate()
-        timer = nil
         buffer.reset()
         if let eventTapSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), eventTapSource, .commonModes) }
         if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: false) }
@@ -103,11 +107,17 @@ final class ScrollingInputPacer: NSObject {
         latestLocation = event.location
         latestFlags = event.flags
         buffer.enqueue(points)
+        emitNextStep()
         return true
     }
 
+    func permitNextStep() {
+        buffer.permitNextStep()
+        emitNextStep()
+    }
+
     private func emitNextStep() {
-        guard let step = buffer.nextStep(maximumMagnitude: Self.maximumPointsPerTick),
+        guard let step = buffer.nextStep(maximumMagnitude: maximumPointsPerStep),
               let event = CGEvent(scrollWheelEvent2Source: nil, units: .pixel,
                                   wheelCount: 1, wheel1: step, wheel2: 0, wheel3: 0) else { return }
         event.location = latestLocation

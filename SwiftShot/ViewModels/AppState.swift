@@ -342,6 +342,7 @@ final class AppState {
                                                                                  performanceRun: performanceRun) } },
             onCancel: { [weak self] in Task { await self?.cancelScrollingCapture(token: token) } })
         scrollingHUD.update(.preparing)
+        scrollingInputPacer.start(viewportHeight: region.rect.height)
         do {
             try await session.start(for: region, onExtentChange: { [weak self, weak session] extent in
                 guard let self, let session, self.scrollingCaptureSession === session,
@@ -352,7 +353,6 @@ final class AppState {
                       self.sessionID == token else { return }
                 self.updateScrollingHUD(for: state)
             }
-            scrollingInputPacer.start()
         } catch {
             guard scrollingCaptureSession === session, sessionID == token else { return }
             scrollingInputPacer.stop()
@@ -367,6 +367,12 @@ final class AppState {
             scrollingHUD.update(.preparing)
         case let .capturing(progress, disposition):
             scrollingAcceptedFrames = progress.acceptedFrames
+            switch disposition {
+            case .firstFrame?, .appended?:
+                scrollingInputPacer.permitNextStep()
+            default:
+                break
+            }
             if progress.acceptedFrames == 0 {
                 scrollingHUD.update(.preparing)
             } else if case .rejected = disposition {

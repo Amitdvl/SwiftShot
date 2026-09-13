@@ -5,12 +5,17 @@ import XCTest
 
 @MainActor
 final class ScrollingFrameSourceTests: XCTestCase {
-    func testInputPacingPreservesFastGestureExtentInBoundedSteps() {
+    func testInputPacingPreservesFastGestureExtentOneAcceptedFrameAtATime() throws {
         var buffer = ScrollingInputPacer.Buffer()
         buffer.enqueue(-355)
 
         var steps = [Int32]()
-        while let step = buffer.nextStep(maximumMagnitude: 32) { steps.append(step) }
+        while buffer.pendingPoints != 0 {
+            XCTAssertNil(buffer.nextStep(maximumMagnitude: 32),
+                         "Wall-clock ticks must not outrun accepted capture frames")
+            buffer.permitNextStep()
+            steps.append(try XCTUnwrap(buffer.nextStep(maximumMagnitude: 32)))
+        }
 
         XCTAssertEqual(steps.reduce(0, +), -355)
         XCTAssertEqual(steps.dropLast(), Array(repeating: -32, count: 11))
@@ -23,9 +28,23 @@ final class ScrollingFrameSourceTests: XCTestCase {
         buffer.enqueue(-80)
         buffer.enqueue(30)
 
+        buffer.permitNextStep()
         XCTAssertEqual(buffer.nextStep(maximumMagnitude: 32), -32)
+        XCTAssertNil(buffer.nextStep(maximumMagnitude: 32))
+        buffer.permitNextStep()
         XCTAssertEqual(buffer.nextStep(maximumMagnitude: 32), -18)
         XCTAssertNil(buffer.nextStep(maximumMagnitude: 32))
+    }
+
+    func testInputPacingStepScalesWithEveryViewportHeight() {
+        for height in [24.0, 48, 96, 240, 480, 960, 1_290] {
+            let step = ScrollingInputPacer.maximumStepPoints(viewportHeight: height)
+
+            XCTAssertGreaterThanOrEqual(step, 1)
+            XCTAssertLessThanOrEqual(step, 32)
+            XCTAssertLessThanOrEqual(step, max(1, height / 8),
+                                     "A step must preserve overlap for a \(height)-point viewport")
+        }
     }
 
     func testConfigurationUsesNativeRegionPixelsAndBoundedCadence() throws {

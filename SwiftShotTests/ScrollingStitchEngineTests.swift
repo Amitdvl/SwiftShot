@@ -168,6 +168,40 @@ final class ScrollingStitchEngineTests: XCTestCase {
                           "Retina seam analysis cannot keep up with a 30 Hz stream: \(elapsed)")
     }
 
+    func testViewportDimensionMatrixStitchesExactPixels() async throws {
+        let cases: [(width: Int, height: Int, shift: Int, scale: CGFloat)] = [
+            (64, 64, 8, 1),
+            (191, 97, 12, 2),
+            (480, 160, 20, 1),
+            (320, 480, 32, 2),
+            (1_440, 360, 32, 2),
+            (512, 1_024, 32, 1),
+            (1_600, 1_290, 32, 2),
+        ]
+
+        for testCase in cases {
+            let rows = documentRows(0..<(testCase.height + testCase.shift * 2),
+                                    width: testCase.width)
+            let engine = ScrollingStitchEngine()
+            _ = try await engine.ingest(frame(try image(
+                rows: Array(rows[0..<testCase.height]), width: testCase.width),
+                scale: testCase.scale))
+            _ = try await engine.ingest(frame(try image(
+                rows: Array(rows[testCase.shift..<(testCase.height + testCase.shift)]),
+                width: testCase.width), scale: testCase.scale))
+            let result = try await engine.ingest(frame(try image(
+                rows: Array(rows[(testCase.shift * 2)..<(testCase.height + testCase.shift * 2)]),
+                width: testCase.width), scale: testCase.scale))
+
+            XCTAssertEqual(result.disposition, .appended(rows: testCase.shift),
+                           "Failed at \(testCase.width)×\(testCase.height) @\(testCase.scale)x")
+            let artifact = try await engine.render()
+            XCTAssertEqual(try pixels(artifact.image),
+                           try pixels(image(rows: rows, width: testCase.width)),
+                           "Incorrect pixels at \(testCase.width)×\(testCase.height) @\(testCase.scale)x")
+        }
+    }
+
     func testFullSizeThreeQuarterViewportJumpStillFindsTheFastScrollSeam() async throws {
         let width = 1_440
         let viewportHeight = 960
