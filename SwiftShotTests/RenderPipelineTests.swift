@@ -381,6 +381,22 @@ final class RenderPipelineTests: XCTestCase {
         XCTAssertNotEqual(output[0..<4], original[0..<4])
     }
 
+    func testSpotlightDrawsVisibleEdgeOnBlackCapture() async throws {
+        let source = try rgbaFixture(width: 80, height: 40, rgba: [0, 0, 0, 255])
+        let annotation = CaptureAnnotation(kind: .spotlight,
+            start: CGPoint(x: 20, y: 10), end: CGPoint(x: 60, y: 30))
+        let result = try await ImageRenderer().renderImage(RenderRequest(image: source,
+            edits: CaptureEdits(crop: CGRect(x: 0, y: 0, width: 80, height: 40), annotations: [annotation]),
+            backgroundURL: nil))
+
+        let edge = try rgbaPixel(result, x: 20, y: 20)
+        XCTAssertGreaterThan(edge[0], 80, "A dark capture needs a visible spotlight boundary")
+        XCTAssertEqual(try rgbaPixel(result, x: 40, y: 20), [0, 0, 0, 255],
+            "The spotlight must preserve the selected image content")
+        XCTAssertEqual(try rgbaPixel(result, x: 0, y: 20), [0, 0, 0, 255],
+            "The contrast treatment must stay on the spotlight boundary")
+    }
+
     func testSixteenBitSourceKeepsPrecisionThroughAnnotationsAndPNG() async throws {
         let source = fixture(bits: 16)
         let annotation = CaptureAnnotation(kind: .rectangle, start: CGPoint(x: 4, y: 4), end: CGPoint(x: 30, y: 20))

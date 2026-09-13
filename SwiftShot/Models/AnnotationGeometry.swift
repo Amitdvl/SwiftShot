@@ -119,6 +119,21 @@ enum AnnotationDrawing {
             context.setFillColor(CGColor(gray: 0, alpha: 0.55))
             context.fill(crop)
             context.restoreGState()
+
+            // A black dimming layer has no contrast against an already-dark
+            // capture. Keep the selected pixels untouched, but outline each
+            // spotlight with its annotation colour so the target stays visible.
+            context.saveGState()
+            context.setLineJoin(.round)
+            for annotation in spotlights {
+                let covered = annotation.rect.intersection(crop)
+                guard !covered.isNull && !covered.isEmpty else { continue }
+                context.setStrokeColor(CGColor(red: annotation.color.red, green: annotation.color.green,
+                                               blue: annotation.color.blue, alpha: annotation.color.alpha))
+                context.setLineWidth(annotation.lineWidth)
+                context.stroke(covered)
+            }
+            context.restoreGState()
         }
         for annotation in annotations where annotation.kind != .redact && annotation.kind != .spotlight {
             draw(annotation, in: context)
