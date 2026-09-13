@@ -250,7 +250,6 @@ final class ScrollingCaptureSpotlightView: NSView {
         super.draw(dirtyRect)
         guard !spotlightFrame.isEmpty else { return }
         drawDimmingMask()
-        drawSpotlightEdge()
         if let extent { drawProgress(extent) }
     }
 
@@ -268,22 +267,6 @@ final class ScrollingCaptureSpotlightView: NSView {
             CGRect(x: hole.maxX, y: hole.minY, width: max(0, bounds.maxX - hole.maxX),
                    height: hole.height)
         ].filter { !$0.isEmpty }.forEach { NSBezierPath(rect: $0).fill() }
-    }
-
-    private func drawSpotlightEdge() {
-        let color = isPaused ? NSColor.systemOrange : NSColor.controlAccentColor
-        NSGraphicsContext.saveGraphicsState()
-        let shadow = NSShadow()
-        shadow.shadowColor = color.withAlphaComponent(0.7)
-        shadow.shadowBlurRadius = 12
-        shadow.shadowOffset = .zero
-        shadow.set()
-        color.withAlphaComponent(0.95).setStroke()
-        let path = NSBezierPath(roundedRect: spotlightFrame.insetBy(dx: 1, dy: 1),
-                                xRadius: 11, yRadius: 11)
-        path.lineWidth = 2
-        path.stroke()
-        NSGraphicsContext.restoreGraphicsState()
     }
 
     private func drawProgress(_ extent: ScrollingCaptureExtent) {

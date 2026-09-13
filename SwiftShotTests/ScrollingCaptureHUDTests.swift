@@ -98,6 +98,28 @@ final class ScrollingCaptureHUDTests: XCTestCase {
     }
 
     @MainActor
+    func testSpotlightDimsOutsideWhileLeavingTheSelectionEdgeClear() throws {
+        let view = ScrollingCaptureSpotlightView(
+            frame: CGRect(x: 0, y: 0, width: 100, height: 100),
+            spotlightFrame: CGRect(x: 20, y: 20, width: 60, height: 60)
+        )
+        let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        let scaleX = CGFloat(bitmap.pixelsWide) / view.bounds.width
+        let scaleY = CGFloat(bitmap.pixelsHigh) / view.bounds.height
+        func color(at point: CGPoint) -> NSColor? {
+            bitmap.colorAt(x: Int(point.x * scaleX), y: Int(point.y * scaleY))
+        }
+
+        let outside = try XCTUnwrap(color(at: CGPoint(x: 10, y: 50)))
+        let center = try XCTUnwrap(color(at: CGPoint(x: 50, y: 50)))
+        let insideEdge = try XCTUnwrap(color(at: CGPoint(x: 22, y: 50)))
+        XCTAssertGreaterThan(outside.alphaComponent, 0.2)
+        XCTAssertLessThan(center.alphaComponent, 0.02)
+        XCTAssertLessThan(insideEdge.alphaComponent, 0.02)
+    }
+
+    @MainActor
     func testUpdateAndMouseActionsUseTheCurrentSessionCallbacks() {
         var staleFinishCount = 0
         var currentFinishCount = 0
