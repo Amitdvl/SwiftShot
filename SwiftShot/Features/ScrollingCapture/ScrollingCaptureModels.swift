@@ -35,7 +35,6 @@ struct ScrollingStitchLimits: Equatable, Sendable {
 enum ScrollingFrameRejection: Equatable, Sendable {
     case insufficientTexture
     case insufficientOverlap
-    case ambiguousOverlap
     case reverseMotion
 }
 

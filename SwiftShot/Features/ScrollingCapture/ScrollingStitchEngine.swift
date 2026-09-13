@@ -319,12 +319,15 @@ actor ScrollingStitchEngine {
             // A duplicate frame is always safe to ignore. Repeated visual
             // structure only becomes ambiguous once it proposes movement.
             if best.shift == 0 { return .unchanged }
-            if candidates.dropFirst().contains(where: {
-                $0.score <= max(best.score + 0.0001, best.score * 1.10)
-            }) {
-                return .rejected(.ambiguousOverlap)
-            }
-            return .append(best)
+            let credibilityLimit = max(best.score + 0.0001, best.score * 1.10)
+            // Repeated cards and rows can yield several pixel-perfect offsets.
+            // Rejecting all of them strands the reference forever. The smallest
+            // verified forward step is conservative: it preserves continuity
+            // without claiming that unseen rows were captured.
+            let conservative = candidates
+                .prefix { $0.score <= credibilityLimit }
+                .min { $0.shift < $1.shift } ?? best
+            return .append(conservative)
         }
 
         var reverseCandidates = [Seam]()

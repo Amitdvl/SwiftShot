@@ -147,6 +147,27 @@ final class ScrollingStitchEngineTests: XCTestCase {
                           "Full-size seam analysis cannot keep up with the live stream: \(elapsed)")
     }
 
+    func testRetinaSizedSparseSeamFitsInsideTheLiveFrameBudget() async throws {
+        let width = 1_600
+        let viewportHeight = 1_290
+        let shift = 100
+        let rows = sparseRepeatedPageRows(count: viewportHeight + shift, width: width)
+        let first = try image(rows: Array(rows[0..<viewportHeight]), width: width)
+        let next = try image(rows: Array(rows[shift..<(viewportHeight + shift)]), width: width)
+        let engine = ScrollingStitchEngine()
+        _ = try await engine.ingest(frame(first))
+
+        let clock = ContinuousClock()
+        let started = clock.now
+        let result = try await engine.ingest(frame(next))
+        let elapsed = started.duration(to: clock.now)
+        print("RETINA_STITCH_ELAPSED=\(elapsed)")
+
+        XCTAssertEqual(result.disposition, .appended(rows: shift))
+        XCTAssertLessThan(elapsed, .milliseconds(30),
+                          "Retina seam analysis cannot keep up with a 30 Hz stream: \(elapsed)")
+    }
+
     func testFullSizeThreeQuarterViewportJumpStillFindsTheFastScrollSeam() async throws {
         let width = 1_440
         let viewportHeight = 960
@@ -254,7 +275,7 @@ final class ScrollingStitchEngineTests: XCTestCase {
         XCTAssertGreaterThan(Double(latest?.progress.outputHeight ?? 0) / Double(viewportHeight), 2.8)
     }
 
-    func testRepeatedPatternIsRejectedWithoutMutatingAcceptedResult() async throws {
+    func testRepeatedPatternChoosesTheSmallestVerifiedForwardStep() async throws {
         let width = 6
         let a = specialRow(seed: 31, width: width)
         let b = specialRow(seed: 173, width: width)
@@ -265,10 +286,11 @@ final class ScrollingStitchEngineTests: XCTestCase {
 
         let result = try await engine.ingest(frame(shifted))
 
-        XCTAssertEqual(result.disposition, .rejected(.ambiguousOverlap))
-        XCTAssertEqual(result.progress.acceptedFrames, 1)
+        XCTAssertEqual(result.disposition, .appended(rows: 1))
+        XCTAssertEqual(result.progress.acceptedFrames, 2)
         let artifact = try await engine.render()
-        XCTAssertEqual(try pixels(artifact.image), try pixels(repeated))
+        let expected = try image(rows: [a, b, a, b, a, b, a], width: width)
+        XCTAssertEqual(try pixels(artifact.image), try pixels(expected))
     }
 
     func testDifferentPixelsWithMatchingBucketAveragesCannotCreateAFalseSeam() async throws {
