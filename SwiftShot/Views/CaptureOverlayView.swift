@@ -118,6 +118,11 @@ struct CaptureOverlayView: View {
             }
         }
         .frame(width: screenSize.width, height: screenSize.height)
+        // Keep SwiftUI's virtual controls reachable when the overlay is hosted
+        // by XCTest or another process without system accessibility enabled.
+        // Without an explicit container, macOS can collapse this entire tree to
+        // the NSHostingView AXGroup and hide every actionable child.
+        .accessibilityElement(children: .contain)
         .coordinateSpace(name: "SwiftShotCaptureOverlay")
         .clipped()
         .preferredColorScheme(nil)
