@@ -10,13 +10,15 @@ The final CI gate passed every preflight, diff, shell, benchmark-report, wrapper
 
 Local package: `build/release-artifacts/SwiftShot-scrolling-capture-2026-09-13-audit-fixed.zip`. ZIP integrity and extracted-bundle strict signature verification passed; SHA-256 is `62f1018cb8d3a2a09e385b39a1417cfb577c4df10aed561e6bb5663933cf4f50`. This is a development-signed local artifact, not a notarized public release. Historical sections after this candidate describe earlier builds; references there to automatic scrolling concern the retired implementation, not the current product.
 
-## 2026-09-13 live Scrolling Capture progress
+## 2026-09-13 Scrolling Capture spotlight
 
-Scrolling Capture now shows a real-time stitched thumbnail in its nonactivating HUD while the user scrolls. The same compact card reports accepted output as both viewport equivalents and exact pixel height, updates only after a verified append, and exposes full output dimensions through its help and accessibility values. Preview generation samples the accepted composite directly into a fixed **72 × 160 px** maximum envelope, so the interaction does not repeatedly render or copy the full-size output.
+Scrolling Capture now keeps the selected viewport bright inside a passive full-display spotlight while dimming the surrounding screen. A glowing selection edge, attached cumulative extent badge, and short accepted-frame trail make progress legible without obscuring the page. Finish and Cancel remain in a compact capsule outside the selection. The spotlight is nonactivating and click-through, so scrolling and pointer input continue to reach the source application; the control capsule stays one window level above it.
 
-Native validation on the installed signed app showed the fixture preview and measurement advancing in place from **1.0 screen · 962 px** to **1.3 screens · 1,282 px**, while Chrome retained focus; Finish opened the resulting capture in the normal editor. The focused Scrolling Capture slice passed **37/37 tests**. The full CI gate passed every phase and executed **397 tests with zero failures**; evidence is `build/ci/run.EtrXpw`. The installed executable passed strict deep signature verification and has SHA-256 `af68a737846f2d50a9f5d3a60473113ece20de7ca4d1b912138c2dcb9740ebd1`.
+The stitch engine now publishes measurement-only `ScrollingCaptureExtent` updates after verified accepts instead of rendering preview pixels during capture. Native validation on the installed signed app showed the bright viewport and measurement advancing from **1.0 screen · 962 px** to **1.3 screens · 1,282 px** while the page visibly scrolled underneath and Chrome retained focus; Finish opened the stitched result in the normal editor. Retained visual evidence is `build/spotlight-native-final-initial.png` and `build/spotlight-native-final-progress.png`.
 
-Local package: `build/release-artifacts/SwiftShot-scrolling-live-preview-2026-09-13.zip`. ZIP integrity passed; SHA-256 is `2cddda45b49db8437b2a02226f70f445c189737e34a70d216797289bc13fc653`. This is a development-signed local artifact, not a notarized public release.
+The focused Scrolling Capture slice passed **38/38 tests**. The full CI gate passed every phase and executed **398 tests with zero failures**; evidence is `build/ci/run.VnudPs`. The installed executable passed strict deep signature verification and has SHA-256 `bc39f9b115617f240b91b3b27e1e126f79fd25d50c7ea036765e96ab26c2b3f2`.
+
+Local package: `build/release-artifacts/SwiftShot-scrolling-spotlight-2026-09-13.zip`. ZIP integrity passed; SHA-256 is `ee13f17a40c2f97e506084fd79bba6d7f7ec69bd70f723e6ea43aa806380df61`. This is a development-signed local artifact, not a notarized public release.
 
 2026-09-11. This is the product finish pass defined in [GOAL.md](GOAL.md), not completion of the old exhaustive certification matrix. All artifacts below are retained locally under `build/goal/` and are not a public notarized release.
 

@@ -336,16 +336,16 @@ final class AppState {
         let visibleFrame = NSScreen.screens.first {
             ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == region.displayID
         }?.visibleFrame ?? region.displayFrame
-        scrollingHUD.show(relativeTo: selectedFrame, in: visibleFrame,
+        scrollingHUD.show(relativeTo: selectedFrame, on: region.displayFrame, in: visibleFrame,
             onFinish: { [weak self] in Task { await self?.finishScrollingCapture(token: token, style: style,
                                                                                  performanceRun: performanceRun) } },
             onCancel: { [weak self] in Task { await self?.cancelScrollingCapture(token: token) } })
         scrollingHUD.update(.preparing)
         do {
-            try await session.start(for: region, onPreviewChange: { [weak self, weak session] preview in
+            try await session.start(for: region, onExtentChange: { [weak self, weak session] extent in
                 guard let self, let session, self.scrollingCaptureSession === session,
                       self.sessionID == token else { return }
-                self.scrollingHUD.update(preview)
+                self.scrollingHUD.update(extent)
             }) { [weak self, weak session] state in
                 guard let self, let session, self.scrollingCaptureSession === session,
                       self.sessionID == token else { return }

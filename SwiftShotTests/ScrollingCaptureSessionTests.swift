@@ -24,19 +24,19 @@ final class ScrollingCaptureSessionTests: XCTestCase {
         XCTAssertEqual(session.state, .finished)
     }
 
-    func testAcceptedFramesPublishMeasuredLivePreviewsBeforeFinish() async throws {
+    func testAcceptedFramesPublishMeasuredLiveExtentsBeforeFinish() async throws {
         let source = FakeScrollingFrameSource()
         let session = ScrollingCaptureSession(source: source)
-        var previews = [ScrollingCapturePreview]()
+        var extents = [ScrollingCaptureExtent]()
 
-        try await session.start(for: makeRegion(), onPreviewChange: { previews.append($0) })
+        try await session.start(for: makeRegion(), onExtentChange: { extents.append($0) })
         source.send(try frame(rows: 0..<6))
         source.send(try frame(rows: 2..<8))
-        await eventually { previews.count == 2 }
+        await eventually { extents.count == 2 }
 
-        XCTAssertEqual(previews.map(\.outputHeight), [6, 8])
-        XCTAssertEqual(previews.map(\.viewportHeight), [6, 6])
-        XCTAssertEqual(previews.map(\.acceptedFrames), [1, 2])
+        XCTAssertEqual(extents.map(\.outputHeight), [6, 8])
+        XCTAssertEqual(extents.map(\.viewportHeight), [6, 6])
+        XCTAssertEqual(extents.map(\.acceptedFrames), [1, 2])
         _ = await session.cancel()
     }
 

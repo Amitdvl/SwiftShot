@@ -54,10 +54,10 @@ struct ScrollingStitchProgress: Equatable, Sendable {
     let retainedBytes: Int
 }
 
-/// A bounded, already-stitched visual summary for the capture HUD. The image is
-/// sampled directly from verified engine pixels and never persisted.
-struct ScrollingCapturePreview: @unchecked Sendable, Equatable {
-    let image: CGImage
+/// The verified cumulative extent shown by the passive capture spotlight.
+/// It contains measurement only; accepted pixels stay inside the stitch engine
+/// until the user finishes.
+struct ScrollingCaptureExtent: Sendable, Equatable {
     let acceptedFrames: Int
     let outputWidth: Int
     let outputHeight: Int
@@ -79,12 +79,6 @@ struct ScrollingCapturePreview: @unchecked Sendable, Equatable {
         "\(Self.grouped(outputWidth)) × \(Self.grouped(outputHeight)) px"
     }
 
-    static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.acceptedFrames == rhs.acceptedFrames && lhs.outputWidth == rhs.outputWidth &&
-            lhs.outputHeight == rhs.outputHeight && lhs.viewportHeight == rhs.viewportHeight &&
-            lhs.image.width == rhs.image.width && lhs.image.height == rhs.image.height
-    }
-
     private static func grouped(_ value: Int) -> String {
         let formatter = NumberFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -99,7 +93,7 @@ struct ScrollingCapturePreview: @unchecked Sendable, Equatable {
 struct ScrollingIngestResult: Equatable, Sendable {
     let disposition: ScrollingIngestDisposition
     let progress: ScrollingStitchProgress
-    let preview: ScrollingCapturePreview?
+    let extent: ScrollingCaptureExtent?
 }
 
 struct ScrollingStitchArtifact: @unchecked Sendable {

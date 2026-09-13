@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import QuartzCore
 import SwiftUI
 
 struct ScrollingCaptureHUDPresentation: Equatable, Sendable {
@@ -23,7 +24,8 @@ enum ScrollingCaptureHUDState: Equatable, Sendable {
             ScrollingCaptureHUDPresentation(headline: "Preparing…", detail: "Starting capture",
                                             showsProgress: true, finishEnabled: false)
         case .ready(let sectionCount):
-            ScrollingCaptureHUDPresentation(headline: "Keep scrolling", detail: "Preview updates live",
+            ScrollingCaptureHUDPresentation(headline: "Keep scrolling",
+                                            detail: "The spotlight tracks your capture",
                                             showsProgress: false, finishEnabled: true)
         case .adding:
             ScrollingCaptureHUDPresentation(headline: "Scroll the page", detail: "Adding section…",
@@ -58,18 +60,18 @@ enum ScrollingCaptureHUDState: Equatable, Sendable {
 @MainActor
 protocol ScrollingCaptureHUDPresenting: AnyObject {
     var isVisible: Bool { get }
-    func show(relativeTo selectedFrame: CGRect, in visibleFrame: CGRect,
+    func show(relativeTo selectedFrame: CGRect, on displayFrame: CGRect, in visibleFrame: CGRect,
               onFinish: @escaping @MainActor () -> Void,
               onCancel: @escaping @MainActor () -> Void)
     func update(_ state: ScrollingCaptureHUDState)
-    func update(_ preview: ScrollingCapturePreview)
+    func update(_ extent: ScrollingCaptureExtent)
     func dismiss()
 }
 
 @MainActor @Observable
 final class ScrollingCaptureHUDModel {
     var state: ScrollingCaptureHUDState
-    var preview: ScrollingCapturePreview?
+    var extent: ScrollingCaptureExtent?
     var actionDelivered = false
 
     init(state: ScrollingCaptureHUDState = .preparing) {
@@ -80,35 +82,45 @@ final class ScrollingCaptureHUDModel {
 @MainActor
 final class ScrollingCaptureHUDController: ScrollingCaptureHUDPresenting {
     private(set) var panel: ScrollingCaptureHUDPanel?
+    private(set) var spotlightPanel: ScrollingCaptureSpotlightPanel?
+    private(set) var spotlightView: ScrollingCaptureSpotlightView?
     private(set) var model: ScrollingCaptureHUDModel?
     private var onFinish: (@MainActor () -> Void)?
     private var onCancel: (@MainActor () -> Void)?
 
     var isVisible: Bool { panel?.isVisible == true }
 
-    func show(relativeTo selectedFrame: CGRect, in visibleFrame: CGRect,
+    func show(relativeTo selectedFrame: CGRect, on displayFrame: CGRect, in visibleFrame: CGRect,
               onFinish: @escaping @MainActor () -> Void,
               onCancel: @escaping @MainActor () -> Void) {
         dismiss()
 
         let model = ScrollingCaptureHUDModel()
+        let localSelection = ScrollingCaptureSpotlightGeometry.localSelection(
+            selected: selectedFrame, overlay: displayFrame)
+        let spotlightView = ScrollingCaptureSpotlightView(
+            frame: CGRect(origin: .zero, size: displayFrame.size),
+            spotlightFrame: localSelection)
+        spotlightView.autoresizingMask = [.width, .height]
+        let spotlightPanel = ScrollingCaptureSpotlightPanel(
+            contentRect: displayFrame,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false)
+        configure(panel: spotlightPanel)
+        spotlightPanel.title = "Scrolling Capture Spotlight"
+        spotlightPanel.ignoresMouseEvents = true
+        spotlightPanel.contentView = spotlightView
+
         let panel = ScrollingCaptureHUDPanel(
             contentRect: ScrollingCaptureHUDPlacement.frame(selected: selectedFrame, visible: visibleFrame),
             styleMask: [.borderless, .nonactivatingPanel, .utilityWindow],
             backing: .buffered,
             defer: false
         )
+        configure(panel: panel)
+        panel.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
         panel.title = "Scrolling Capture"
-        panel.titleVisibility = .hidden
-        panel.isFloatingPanel = true
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = false
-        panel.hidesOnDeactivate = false
-        panel.isReleasedWhenClosed = false
-        panel.isRestorable = false
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.setAccessibilityLabel("Scrolling Capture")
 
         let hosting = NSHostingView(rootView: ScrollingCaptureHUDView(
@@ -123,25 +135,40 @@ final class ScrollingCaptureHUDController: ScrollingCaptureHUDPresenting {
 
         self.model = model
         self.panel = panel
+        self.spotlightPanel = spotlightPanel
+        self.spotlightView = spotlightView
         self.onFinish = onFinish
         self.onCancel = onCancel
+        spotlightPanel.alphaValue = 0
+        spotlightPanel.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.16
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            spotlightPanel.animator().alphaValue = 1
+        }
         panel.orderFrontRegardless()
     }
 
     func update(_ state: ScrollingCaptureHUDState) {
         guard let model, !model.actionDelivered else { return }
         model.state = state
+        spotlightView?.update(state)
     }
 
-    func update(_ preview: ScrollingCapturePreview) {
+    func update(_ extent: ScrollingCaptureExtent) {
         guard let model, !model.actionDelivered else { return }
-        model.preview = preview
+        model.extent = extent
+        spotlightView?.update(extent)
     }
 
     func dismiss() {
         panel?.orderOut(nil)
         panel?.close()
+        spotlightPanel?.orderOut(nil)
+        spotlightPanel?.close()
         panel = nil
+        spotlightPanel = nil
+        spotlightView = nil
         model = nil
         onFinish = nil
         onCancel = nil
@@ -159,6 +186,19 @@ final class ScrollingCaptureHUDController: ScrollingCaptureHUDPresenting {
         model.actionDelivered = true
         onCancel?()
     }
+
+    private func configure(panel: NSPanel) {
+        panel.titleVisibility = .hidden
+        panel.isFloatingPanel = true
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = false
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+        panel.isRestorable = false
+        panel.level = .floating
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+    }
 }
 
 final class ScrollingCaptureHUDPanel: NSPanel {
@@ -166,8 +206,137 @@ final class ScrollingCaptureHUDPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+final class ScrollingCaptureSpotlightPanel: NSPanel {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+}
+
+enum ScrollingCaptureSpotlightGeometry {
+    static func localSelection(selected: CGRect, overlay: CGRect) -> CGRect {
+        let local = selected.offsetBy(dx: -overlay.minX, dy: -overlay.minY)
+        let bounds = CGRect(origin: .zero, size: overlay.size)
+        let clipped = local.intersection(bounds)
+        return clipped.isNull ? .zero : clipped
+    }
+}
+
+final class ScrollingCaptureSpotlightView: NSView {
+    private(set) var extent: ScrollingCaptureExtent?
+    private var state: ScrollingCaptureHUDState = .preparing
+    private let spotlightFrame: CGRect
+
+    init(frame frameRect: NSRect, spotlightFrame: CGRect) {
+        self.spotlightFrame = spotlightFrame
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.masksToBounds = false
+        setAccessibilityElement(false)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    func update(_ extent: ScrollingCaptureExtent) {
+        self.extent = extent
+        needsDisplay = true
+    }
+
+    func update(_ state: ScrollingCaptureHUDState) {
+        self.state = state
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard !spotlightFrame.isEmpty else { return }
+        drawDimmingMask()
+        drawSpotlightEdge()
+        if let extent { drawProgress(extent) }
+    }
+
+    private func drawDimmingMask() {
+        let hole = spotlightFrame.intersection(bounds)
+        guard !hole.isNull else { return }
+        NSColor.black.withAlphaComponent(0.34).setFill()
+        [
+            CGRect(x: bounds.minX, y: hole.maxY, width: bounds.width,
+                   height: max(0, bounds.maxY - hole.maxY)),
+            CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width,
+                   height: max(0, hole.minY - bounds.minY)),
+            CGRect(x: bounds.minX, y: hole.minY, width: max(0, hole.minX - bounds.minX),
+                   height: hole.height),
+            CGRect(x: hole.maxX, y: hole.minY, width: max(0, bounds.maxX - hole.maxX),
+                   height: hole.height)
+        ].filter { !$0.isEmpty }.forEach { NSBezierPath(rect: $0).fill() }
+    }
+
+    private func drawSpotlightEdge() {
+        let color = isPaused ? NSColor.systemOrange : NSColor.controlAccentColor
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowColor = color.withAlphaComponent(0.7)
+        shadow.shadowBlurRadius = 12
+        shadow.shadowOffset = .zero
+        shadow.set()
+        color.withAlphaComponent(0.95).setStroke()
+        let path = NSBezierPath(roundedRect: spotlightFrame.insetBy(dx: 1, dy: 1),
+                                xRadius: 11, yRadius: 11)
+        path.lineWidth = 2
+        path.stroke()
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    private func drawProgress(_ extent: ScrollingCaptureExtent) {
+        let color = isPaused ? NSColor.systemOrange : NSColor.controlAccentColor
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.white
+        ]
+        let label = extent.extentLabel as NSString
+        let textSize = label.size(withAttributes: attributes)
+        let badgeSize = CGSize(width: textSize.width + 18, height: 26)
+        let x = min(max(spotlightFrame.minX + 10, spotlightFrame.maxX - badgeSize.width - 12),
+                    bounds.maxX - badgeSize.width - 6)
+        let y = max(bounds.minY + 6, spotlightFrame.minY + 10)
+        let badge = CGRect(origin: CGPoint(x: x, y: y), size: badgeSize)
+        color.withAlphaComponent(0.92).setFill()
+        NSBezierPath(roundedRect: badge, xRadius: 13, yRadius: 13).fill()
+        label.draw(at: CGPoint(x: badge.minX + 9,
+                               y: badge.midY - textSize.height / 2), withAttributes: attributes)
+
+        let tickCount = min(8, max(1, extent.acceptedFrames))
+        let railX = spotlightFrame.maxX - 10
+        let railBottom = badge.maxY + 10
+        let available = max(0, spotlightFrame.maxY - railBottom - 14)
+        guard available >= 5 else { return }
+        color.withAlphaComponent(0.28).setStroke()
+        let rail = NSBezierPath()
+        rail.move(to: CGPoint(x: railX, y: railBottom))
+        rail.line(to: CGPoint(x: railX, y: railBottom + available))
+        rail.lineWidth = 1
+        rail.stroke()
+        color.withAlphaComponent(0.95).setStroke()
+        for index in 0..<tickCount {
+            let y = railBottom + min(available, CGFloat(index) * 11)
+            let tick = NSBezierPath()
+            tick.move(to: CGPoint(x: railX - 5, y: y))
+            tick.line(to: CGPoint(x: railX + 1, y: y))
+            tick.lineWidth = 2
+            tick.stroke()
+        }
+    }
+
+    private var isPaused: Bool {
+        switch state {
+        case .recoverableSeam, .terminal: true
+        default: false
+        }
+    }
+}
+
 enum ScrollingCaptureHUDPlacement {
-    static let size = CGSize(width: 392, height: 112)
+    static let size = CGSize(width: 332, height: 60)
 
     static func frame(selected: CGRect, visible: CGRect) -> CGRect {
         let safe = visible.insetBy(dx: 8, dy: 8)
@@ -207,94 +376,53 @@ private struct ScrollingCaptureHUDView: View {
     private var presentation: ScrollingCaptureHUDPresentation { model.state.presentation }
 
     var body: some View {
-        HStack(spacing: 10) {
-            livePreview
+        HStack(spacing: 8) {
+            statusIcon
+                .frame(width: 20, height: 20)
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 7) {
-                    statusIcon
-                        .frame(width: 18, height: 18)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(presentation.headline)
-                            .font(.system(size: 12, weight: .semibold))
-                            .lineLimit(1)
-                        Text(presentation.detail)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Capture status")
-                    .accessibilityValue("\(presentation.headline). \(presentation.detail)")
-                }
-
-                HStack(spacing: 7) {
-                    Text(model.preview?.extentLabel ?? "Waiting for first frame")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(model.preview == nil ? .secondary : .primary)
-                        .lineLimit(1)
-                        .contentTransition(.numericText())
-
-                    Spacer(minLength: 2)
-
-                    Button("Finish", action: onFinish)
-                        .buttonStyle(CaptureButtonStyle(prominent: true))
-                        .keyboardShortcut(.defaultAction)
-                        .disabled(!presentation.finishEnabled || model.actionDelivered)
-                        .help("Finish and open in editor")
-                        .accessibilityLabel("Finish Scrolling Capture")
-
-                    Button(action: onCancel) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .semibold))
-                    }
-                    .buttonStyle(CaptureButtonStyle(compact: true))
-                    .keyboardShortcut(.cancelAction)
-                    .disabled(model.actionDelivered)
-                    .help("Cancel and discard")
-                    .accessibilityLabel("Cancel Scrolling Capture")
-                }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(presentation.headline)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                Text(model.extent?.extentLabel ?? presentation.detail)
+                    .font(.system(size: 10, weight: model.extent == nil ? .regular : .medium,
+                                  design: model.extent == nil ? .default : .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .contentTransition(.numericText())
             }
+            .frame(width: 156, alignment: .leading)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Capture status")
+            .accessibilityValue("\(presentation.headline). \(model.extent?.extentLabel ?? presentation.detail)")
+
+            Spacer(minLength: 0)
+
+            Button("Finish", action: onFinish)
+                .buttonStyle(CaptureButtonStyle(prominent: true))
+                .keyboardShortcut(.defaultAction)
+                .disabled(!presentation.finishEnabled || model.actionDelivered)
+                .help("Finish and open in editor")
+                .accessibilityLabel("Finish Scrolling Capture")
+
+            Button(action: onCancel) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .frame(minWidth: 40, minHeight: 40)
+            .buttonStyle(CaptureButtonStyle(compact: true))
+            .keyboardShortcut(.cancelAction)
+            .disabled(model.actionDelivered)
+            .help("Cancel and discard")
+            .accessibilityLabel("Cancel Scrolling Capture")
         }
-        .padding(10)
+        .padding(.horizontal, 10)
         .frame(width: ScrollingCaptureHUDPlacement.size.width,
                height: ScrollingCaptureHUDPlacement.size.height)
-        .captureChrome(radius: 20)
+        .captureChrome(capsule: true)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Scrolling Capture")
-    }
-
-    private var livePreview: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.primary.opacity(0.045))
-            if let preview = model.preview {
-                Image(decorative: preview.image, scale: 1)
-                    .resizable()
-                    .interpolation(.low)
-                    .scaledToFit()
-                    .id(preview.acceptedFrames)
-                    .transition(.opacity)
-                    .padding(4)
-            } else {
-                Image(systemName: "rectangle.portrait")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .frame(width: 72, height: 92)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(.primary.opacity(0.1), lineWidth: 0.5)
-        }
-        .animation(.easeOut(duration: 0.16), value: model.preview?.acceptedFrames)
-        .help(model.preview.map { "Live stitched preview — \($0.dimensionsLabel)" }
-              ?? "The stitched capture will appear here")
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Live stitched preview")
-        .accessibilityValue(model.preview?.dimensionsLabel ?? "Waiting for first frame")
     }
 
     @ViewBuilder
