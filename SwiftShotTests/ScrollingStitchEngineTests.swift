@@ -206,6 +206,54 @@ final class ScrollingStitchEngineTests: XCTestCase {
         XCTAssertEqual(try pixels(artifact.image), try pixels(expected))
     }
 
+    func testChangingStickyChromeIsIgnoredInsteadOfFreezingTheCapture() async throws {
+        let width = 128
+        let bodyHeight = 100
+        let content = documentRows(0..<(bodyHeight + 20), width: width)
+        let originalHeader = (0..<12).map { specialRow(seed: 180 + $0, width: width) }
+        var changedHeader = originalHeader
+        changedHeader[11] = specialRow(seed: 17, width: width)
+        let footer = (0..<8).map { specialRow(seed: 220 + $0, width: width) }
+        func viewport(_ offset: Int, header: [[UInt8]]) throws -> CGImage {
+            try image(rows: header + Array(content[offset..<(offset + bodyHeight)]) + footer,
+                      width: width)
+        }
+        let engine = ScrollingStitchEngine()
+        _ = try await engine.ingest(frame(try viewport(0, header: originalHeader)))
+        _ = try await engine.ingest(frame(try viewport(10, header: originalHeader)))
+
+        let result = try await engine.ingest(frame(try viewport(20, header: changedHeader)))
+
+        XCTAssertEqual(result.disposition, .appended(rows: 10))
+        XCTAssertEqual(result.progress.outputHeight, 140)
+    }
+
+    func testTinyFirstScrollCannotFreezeWhitespaceAsStickyChrome() async throws {
+        let width = 320
+        let viewportHeight = 480
+        let headerHeight = 48
+        let bodyHeight = viewportHeight - headerHeight
+        let content = browserLikeRows(count: bodyHeight + 900, width: width)
+        let header = Array(repeating: specialRow(seed: 233, width: width), count: headerHeight)
+        func viewport(_ offset: Int) throws -> CGImage {
+            try image(rows: header + Array(content[offset..<(offset + bodyHeight)]), width: width)
+        }
+        let engine = ScrollingStitchEngine()
+        _ = try await engine.ingest(frame(try viewport(0)))
+
+        var previousOffset = 0
+        var latest: ScrollingIngestResult?
+        for offset in [60, 180, 300, 420, 540, 660, 780, 900] {
+            latest = try await engine.ingest(frame(try viewport(offset)))
+            XCTAssertEqual(latest?.disposition, .appended(rows: offset - previousOffset),
+                           "Whitespace below fixed chrome must not become a permanent sticky mask")
+            previousOffset = offset
+        }
+
+        XCTAssertEqual(latest?.progress.outputHeight, viewportHeight + 900)
+        XCTAssertGreaterThan(Double(latest?.progress.outputHeight ?? 0) / Double(viewportHeight), 2.8)
+    }
+
     func testRepeatedPatternIsRejectedWithoutMutatingAcceptedResult() async throws {
         let width = 6
         let a = specialRow(seed: 31, width: width)
@@ -417,6 +465,27 @@ final class ScrollingStitchEngineTests: XCTestCase {
                     value = 112
                 } else if (50..<62).contains(local), (11..<20).contains(x) {
                     value = UInt8(32 + (section * 47) % 180)
+                } else {
+                    value = 248
+                }
+                return [value, value, value, 255]
+            }
+        }
+    }
+
+    /// A mostly-white browser document whose first visible content sits well
+    /// below a fixed toolbar. Small initial motion makes many screen-coordinate
+    /// rows look stationary even though only the toolbar is actually sticky.
+    private func browserLikeRows(count: Int, width: Int) -> [[UInt8]] {
+        (0..<count).map { row in
+            (0..<width).flatMap { x -> [UInt8] in
+                let value: UInt8
+                if row < 120 {
+                    value = 248
+                } else if (row % 56) < 8, (36..<284).contains(x) {
+                    value = UInt8(28 + (row / 56 * 31) % 160)
+                } else if (row % 56) == 11, (18..<24).contains(x) {
+                    value = UInt8(40 + (row / 56 * 47) % 160)
                 } else {
                     value = 248
                 }

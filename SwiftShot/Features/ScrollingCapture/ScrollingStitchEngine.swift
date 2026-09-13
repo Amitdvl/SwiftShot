@@ -40,7 +40,9 @@ actor ScrollingStitchEngine {
 
     private let limits: ScrollingStitchLimits
     private var reference: PixelFrame?
-    private var stickyInsets: StickyInsets?
+    /// The first accepted pair defines how fixed edge chrome is placed in the
+    /// final bitmap. It is never reused as a matching invariant.
+    private var compositionInsets: StickyInsets?
     private var stickyTop = [UInt8]()
     private var body = [UInt8]()
     private var stickyBottom = [UInt8]()
@@ -86,11 +88,11 @@ actor ScrollingStitchEngine {
             throw ScrollingStitchError.scaleMismatch(expected: previous.scale, actual: incoming.scale)
         }
 
-        let proposedInsets = stickyInsets ?? Self.detectStickyInsets(previous, incoming)
-        if stickyInsets != nil && !Self.stickyRowsMatch(previous, incoming, insets: proposedInsets) {
-            return result(.rejected(.stickyRegionChanged))
-        }
-        let match = try Self.match(previous, incoming, insets: proposedInsets,
+        // Fixed chrome is observed again for every pair. A small first movement
+        // can make ordinary whitespace look fixed; carrying that guess forward
+        // permanently is what caused captures to freeze around 1.1 screens.
+        let matchInsets = Self.detectStickyInsets(previous, incoming)
+        let match = try Self.match(previous, incoming, insets: matchInsets,
                                    minimumOverlapRows: limits.minimumOverlapRows)
         try checkCancellation()
 
@@ -108,12 +110,13 @@ actor ScrollingStitchEngine {
             try preflight(outputWidth: width, outputHeight: nextHeight,
                           referenceBytes: incoming.retainedBytes)
 
-            if stickyInsets == nil {
-                applyInitialStickyInsets(proposedInsets, frame: previous)
-                stickyInsets = proposedInsets
+            if compositionInsets == nil {
+                applyInitialStickyInsets(matchInsets, frame: previous)
+                compositionInsets = matchInsets
             }
+            let outputInsets = compositionInsets ?? .none
             let newBodyRange = Self.rowByteRange(
-                (incoming.height - proposedInsets.bottom - seam.shift)..<(incoming.height - proposedInsets.bottom),
+                (incoming.height - outputInsets.bottom - seam.shift)..<(incoming.height - outputInsets.bottom),
                 width: incoming.width)
             body.append(contentsOf: incoming.rgba[newBodyRange])
             reference = incoming
@@ -155,6 +158,7 @@ actor ScrollingStitchEngine {
         let artifact = ScrollingStitchArtifact(image: image, acceptedFrames: acceptedFrames,
                                                appendedRows: appendedRows)
         self.reference = nil
+        compositionInsets = nil
         stickyTop.removeAll(keepingCapacity: false)
         body.removeAll(keepingCapacity: false)
         stickyBottom.removeAll(keepingCapacity: false)
@@ -164,6 +168,7 @@ actor ScrollingStitchEngine {
     func cancel() {
         cancelled = true
         reference = nil
+        compositionInsets = nil
         stickyTop.removeAll(keepingCapacity: false)
         body.removeAll(keepingCapacity: false)
         stickyBottom.removeAll(keepingCapacity: false)
@@ -275,14 +280,6 @@ actor ScrollingStitchEngine {
               rowDifference(previous, previous.height - 1 - bottom,
                             current, current.height - 1 - bottom) <= 4 { bottom += 1 }
         return StickyInsets(top: top, bottom: bottom)
-    }
-
-    private static func stickyRowsMatch(_ previous: PixelFrame, _ current: PixelFrame,
-                                        insets: StickyInsets) -> Bool {
-        for row in 0..<insets.top where rowDifference(previous, row, current, row) > 8 { return false }
-        for offset in 0..<insets.bottom where rowDifference(previous, previous.height - 1 - offset,
-            current, current.height - 1 - offset) > 8 { return false }
-        return true
     }
 
     private static func match(_ previous: PixelFrame, _ current: PixelFrame,

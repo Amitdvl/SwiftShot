@@ -37,7 +37,6 @@ enum ScrollingFrameRejection: Equatable, Sendable {
     case insufficientOverlap
     case ambiguousOverlap
     case reverseMotion
-    case stickyRegionChanged
 }
 
 enum ScrollingIngestDisposition: Equatable, Sendable {
