@@ -61,7 +61,7 @@ final class ScrollingCaptureHUDTests: XCTestCase {
     }
 
     @MainActor
-    func testExtentUpdateMovesStableMeasurementOntoTheSpotlight() {
+    func testExtentUpdateKeepsMeasurementInTheCompactHUD() {
         let extent = ScrollingCaptureExtent(
             acceptedFrames: 4,
             outputWidth: 1_440,
@@ -77,7 +77,6 @@ final class ScrollingCaptureHUDTests: XCTestCase {
         controller.update(extent)
 
         XCTAssertEqual(controller.model?.extent?.outputHeight, 2_544)
-        XCTAssertEqual(controller.spotlightView?.extent?.outputHeight, 2_544)
         XCTAssertEqual(extent.extentLabel, "2.7 screens · 2,544 px")
         XCTAssertEqual(extent.dimensionsLabel, "1,440 × 2,544 px")
     }

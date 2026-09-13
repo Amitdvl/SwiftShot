@@ -152,13 +152,11 @@ final class ScrollingCaptureHUDController: ScrollingCaptureHUDPresenting {
     func update(_ state: ScrollingCaptureHUDState) {
         guard let model, !model.actionDelivered else { return }
         model.state = state
-        spotlightView?.update(state)
     }
 
     func update(_ extent: ScrollingCaptureExtent) {
         guard let model, !model.actionDelivered else { return }
         model.extent = extent
-        spotlightView?.update(extent)
     }
 
     func dismiss() {
@@ -221,8 +219,6 @@ enum ScrollingCaptureSpotlightGeometry {
 }
 
 final class ScrollingCaptureSpotlightView: NSView {
-    private(set) var extent: ScrollingCaptureExtent?
-    private var state: ScrollingCaptureHUDState = .preparing
     private let spotlightFrame: CGRect
 
     init(frame frameRect: NSRect, spotlightFrame: CGRect) {
@@ -236,21 +232,10 @@ final class ScrollingCaptureSpotlightView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { nil }
 
-    func update(_ extent: ScrollingCaptureExtent) {
-        self.extent = extent
-        needsDisplay = true
-    }
-
-    func update(_ state: ScrollingCaptureHUDState) {
-        self.state = state
-        needsDisplay = true
-    }
-
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         guard !spotlightFrame.isEmpty else { return }
         drawDimmingMask()
-        if let extent { drawProgress(extent) }
     }
 
     private func drawDimmingMask() {
@@ -269,53 +254,6 @@ final class ScrollingCaptureSpotlightView: NSView {
         ].filter { !$0.isEmpty }.forEach { NSBezierPath(rect: $0).fill() }
     }
 
-    private func drawProgress(_ extent: ScrollingCaptureExtent) {
-        let color = isPaused ? NSColor.systemOrange : NSColor.controlAccentColor
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: NSColor.white
-        ]
-        let label = extent.extentLabel as NSString
-        let textSize = label.size(withAttributes: attributes)
-        let badgeSize = CGSize(width: textSize.width + 18, height: 26)
-        let x = min(max(spotlightFrame.minX + 10, spotlightFrame.maxX - badgeSize.width - 12),
-                    bounds.maxX - badgeSize.width - 6)
-        let y = max(bounds.minY + 6, spotlightFrame.minY + 10)
-        let badge = CGRect(origin: CGPoint(x: x, y: y), size: badgeSize)
-        color.withAlphaComponent(0.92).setFill()
-        NSBezierPath(roundedRect: badge, xRadius: 13, yRadius: 13).fill()
-        label.draw(at: CGPoint(x: badge.minX + 9,
-                               y: badge.midY - textSize.height / 2), withAttributes: attributes)
-
-        let tickCount = min(8, max(1, extent.acceptedFrames))
-        let railX = spotlightFrame.maxX - 10
-        let railBottom = badge.maxY + 10
-        let available = max(0, spotlightFrame.maxY - railBottom - 14)
-        guard available >= 5 else { return }
-        color.withAlphaComponent(0.28).setStroke()
-        let rail = NSBezierPath()
-        rail.move(to: CGPoint(x: railX, y: railBottom))
-        rail.line(to: CGPoint(x: railX, y: railBottom + available))
-        rail.lineWidth = 1
-        rail.stroke()
-        color.withAlphaComponent(0.95).setStroke()
-        for index in 0..<tickCount {
-            let y = railBottom + min(available, CGFloat(index) * 11)
-            let tick = NSBezierPath()
-            tick.move(to: CGPoint(x: railX - 5, y: y))
-            tick.line(to: CGPoint(x: railX + 1, y: y))
-            tick.lineWidth = 2
-            tick.stroke()
-        }
-    }
-
-    private var isPaused: Bool {
-        switch state {
-        case .recoverableSeam, .terminal: true
-        default: false
-        }
-    }
 }
 
 enum ScrollingCaptureHUDPlacement {
