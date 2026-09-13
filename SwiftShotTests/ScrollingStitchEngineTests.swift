@@ -127,6 +127,27 @@ final class ScrollingStitchEngineTests: XCTestCase {
         XCTAssertEqual(result.progress.outputHeight, viewportHeight + shift)
     }
 
+    func testSparseRepeatedPageWithoutRealOverlapCannotAppendAStructuralLookalike() async throws {
+        let width = 1_440
+        let viewportHeight = 960
+        let gap = 10
+        let rows = sparseRepeatedPageRows(count: viewportHeight * 2 + gap, width: width)
+        let initial = try image(rows: Array(rows[0..<viewportHeight]), width: width)
+        let engine = ScrollingStitchEngine()
+        _ = try await engine.ingest(frame(initial))
+
+        let incoming = try image(rows: Array(rows[(viewportHeight + gap)..<(viewportHeight * 2 + gap)]),
+                                 width: width)
+        let result = try await engine.ingest(frame(incoming))
+
+        guard case .rejected = result.disposition else {
+            return XCTFail("Expected a non-overlapping sparse frame to be rejected, got \(result.disposition)")
+        }
+        XCTAssertEqual(result.progress.acceptedFrames, 1)
+        let artifact = try await engine.render()
+        XCTAssertEqual(try pixels(artifact.image), try pixels(initial))
+    }
+
     func testStickyTopAndBottomRowsAppearExactlyOnce() async throws {
         let width = 7
         let content = documentRows(0..<10, width: width)
@@ -164,6 +185,26 @@ final class ScrollingStitchEngineTests: XCTestCase {
         XCTAssertEqual(result.progress.acceptedFrames, 1)
         let artifact = try await engine.render()
         XCTAssertEqual(try pixels(artifact.image), try pixels(repeated))
+    }
+
+    func testDifferentPixelsWithMatchingBucketAveragesCannotCreateAFalseSeam() async throws {
+        let width = 128
+        let initialRows = (0..<12).map {
+            bucketCollisionRow(index: $0, width: width, reversed: false)
+        }
+        let incomingRows = (3..<15).map {
+            bucketCollisionRow(index: $0, width: width, reversed: true)
+        }
+        let initial = try image(rows: initialRows, width: width)
+        let engine = ScrollingStitchEngine()
+        _ = try await engine.ingest(frame(initial))
+
+        let result = try await engine.ingest(frame(try image(rows: incomingRows, width: width)))
+
+        XCTAssertEqual(result.disposition, .rejected(.insufficientOverlap))
+        XCTAssertEqual(result.progress.acceptedFrames, 1)
+        let artifact = try await engine.render()
+        XCTAssertEqual(try pixels(artifact.image), try pixels(initial))
     }
 
     func testBlankFrameIsRejectedWithoutMutatingAcceptedResult() async throws {
@@ -299,6 +340,20 @@ final class ScrollingStitchEngineTests: XCTestCase {
 
     private func solidRow(_ value: UInt8, width: Int) -> [UInt8] {
         Array(repeating: [value, value, value, UInt8(255)], count: width).flatMap { $0 }
+    }
+
+    /// Each two-pixel bucket has the same average in both orientations. A
+    /// bucket-only matcher therefore sees a perfect seam although every source
+    /// pixel in the proposed overlap is different.
+    private func bucketCollisionRow(index: Int, width: Int, reversed: Bool) -> [UInt8] {
+        precondition(width.isMultiple(of: 2))
+        let midpoint = UInt8(40 + index * 12)
+        let low = midpoint - 20
+        let high = midpoint + 20
+        let pair = reversed ? [high, low] : [low, high]
+        return (0..<(width / 2)).flatMap { _ in
+            pair.flatMap { [$0, $0, $0, UInt8(255)] }
+        }
     }
 
     private func addNoise(to rows: [[UInt8]], amount: UInt8) -> [[UInt8]] {

@@ -27,6 +27,11 @@ actor ScrollingStitchEngine {
         let score: Double
     }
 
+    private struct PixelEvidence: Sendable {
+        let averageDifference: Double
+        let informativeMismatchScore: Double
+    }
+
     private enum Match {
         case unchanged
         case append(Seam)
@@ -302,9 +307,17 @@ actor ScrollingStitchEngine {
         }
         candidates.sort { $0.score == $1.score ? $0.shift < $1.shift : $0.score < $1.score }
         candidates = candidates.prefix(24).map {
-            Seam(shift: $0.shift, score: difference(previous,
+            let rows = bodyHeight - $0.shift
+            let signatureScore = difference(previous,
                 previousStart: insets.top + $0.shift, current,
-                currentStart: insets.top, rows: bodyHeight - $0.shift, exhaustive: true))
+                currentStart: insets.top, rows: rows, exhaustive: true)
+            let pixelEvidence = pixelEvidence(previous,
+                previousStart: insets.top + $0.shift, current,
+                currentStart: insets.top, rows: rows)
+            return Seam(shift: $0.shift, score: max(
+                signatureScore,
+                pixelEvidence.averageDifference,
+                pixelEvidence.informativeMismatchScore))
         }.filter { $0.score <= 8 }
         candidates.sort { $0.score == $1.score ? $0.shift < $1.shift : $0.score < $1.score }
         if let best = candidates.first {
@@ -328,10 +341,17 @@ actor ScrollingStitchEngine {
         }
         reverseCandidates.sort { $0.score == $1.score ? $0.shift < $1.shift : $0.score < $1.score }
         reverseCandidates = reverseCandidates.prefix(24).map {
-            Seam(shift: $0.shift, score: difference(previous,
+            let rows = bodyHeight - $0.shift
+            let signatureScore = difference(previous,
                 previousStart: insets.top, current,
-                currentStart: insets.top + $0.shift, rows: bodyHeight - $0.shift,
-                exhaustive: true))
+                currentStart: insets.top + $0.shift, rows: rows, exhaustive: true)
+            let pixelEvidence = pixelEvidence(previous,
+                previousStart: insets.top, current,
+                currentStart: insets.top + $0.shift, rows: rows)
+            return Seam(shift: $0.shift, score: max(
+                signatureScore,
+                pixelEvidence.averageDifference,
+                pixelEvidence.informativeMismatchScore))
         }.filter { $0.score <= 8 }
         reverseCandidates.sort { $0.score == $1.score ? $0.shift < $1.shift : $0.score < $1.score }
         if let best = reverseCandidates.first,
@@ -365,8 +385,8 @@ actor ScrollingStitchEngine {
     }
 
     private static func difference(_ previous: PixelFrame, previousStart: Int,
-                                   _ current: PixelFrame, currentStart: Int, rows: Int,
-                                   exhaustive: Bool = false) -> Double {
+                                   _ current: PixelFrame, currentStart: Int,
+                                   rows: Int, exhaustive: Bool = false) -> Double {
         let rowStep = exhaustive ? 1 : max(1, rows / 192)
         let columns = min(previous.signatureColumns, current.signatureColumns)
         var total = 0
@@ -388,6 +408,80 @@ actor ScrollingStitchEngine {
     private static func rowDifference(_ previous: PixelFrame, _ previousRow: Int,
                                       _ current: PixelFrame, _ currentRow: Int) -> Double {
         difference(previous, previousStart: previousRow, current, currentStart: currentRow, rows: 1)
+    }
+
+    /// Coarse row signatures find candidate offsets quickly, but blank space can
+    /// dilute a false seam on sparse interfaces. Finalists must agree both on
+    /// average RGB and on the informative pixels around visible edges and text.
+    private static func pixelEvidence(_ previous: PixelFrame, previousStart: Int,
+                                      _ current: PixelFrame, currentStart: Int,
+                                      rows: Int) -> PixelEvidence {
+        let rowStep = max(1, rows / 256)
+        let columnStep = max(1, previous.width / 256)
+        var total = 0
+        var samples = 0
+        var informativeSamples = 0
+        var informativeMismatches = 0
+        var row = 0
+        while row < rows {
+            var column = 0
+            while column < previous.width {
+                let previousOffset = ((previousStart + row) * previous.width + column) * 4
+                let currentOffset = ((currentStart + row) * current.width + column) * 4
+                var maximumChannelDifference = 0
+                for channel in 0..<3 {
+                    let channelDifference = abs(Int(previous.rgba[previousOffset + channel]) -
+                                                Int(current.rgba[currentOffset + channel]))
+                    total += channelDifference
+                    maximumChannelDifference = max(maximumChannelDifference, channelDifference)
+                }
+                samples += 3
+
+                let previousGradient = localHorizontalGradient(previous,
+                    row: previousStart + row, column: column)
+                let currentGradient = localHorizontalGradient(current,
+                    row: currentStart + row, column: column)
+                if max(previousGradient, currentGradient) > 12 {
+                    informativeSamples += 1
+                    if maximumChannelDifference > 12 ||
+                        abs(previousGradient - currentGradient) > 12 {
+                        informativeMismatches += 1
+                    }
+                }
+                column += columnStep
+            }
+            row += rowStep
+        }
+        guard samples > 0, informativeSamples > 0 else {
+            return PixelEvidence(averageDifference: .infinity,
+                                 informativeMismatchScore: .infinity)
+        }
+        // Scale the ratio into the same score range as RGB differences. With
+        // the acceptance threshold of 8, at least 84% of edge evidence must
+        // agree while periodic dynamic rows can still be tolerated.
+        return PixelEvidence(
+            averageDifference: Double(total) / Double(samples),
+            informativeMismatchScore: Double(informativeMismatches) /
+                Double(informativeSamples) * 50)
+    }
+
+    private static func localHorizontalGradient(_ frame: PixelFrame, row: Int,
+                                                column: Int) -> Int {
+        let center = luminance(frame, row: row, column: column)
+        var gradient = 0
+        if column > 0 {
+            gradient = max(gradient, abs(center - luminance(frame, row: row, column: column - 1)))
+        }
+        if column + 1 < frame.width {
+            gradient = max(gradient, abs(center - luminance(frame, row: row, column: column + 1)))
+        }
+        return gradient
+    }
+
+    private static func luminance(_ frame: PixelFrame, row: Int, column: Int) -> Int {
+        let offset = (row * frame.width + column) * 4
+        return (Int(frame.rgba[offset]) * 3 + Int(frame.rgba[offset + 1]) * 6 +
+                Int(frame.rgba[offset + 2])) / 10
     }
 
     private static func rowByteRange(_ rows: Range<Int>, width: Int) -> Range<Int> {
