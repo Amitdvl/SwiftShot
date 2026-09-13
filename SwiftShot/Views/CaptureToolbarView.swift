@@ -4,6 +4,13 @@ import AppKit
 struct CaptureToolbarView: View {
     let session: OverlaySession
     let document: CaptureDocument
+    let reportsControlFrames: Bool
+
+    init(session: OverlaySession, document: CaptureDocument, reportsControlFrames: Bool = false) {
+        self.session = session
+        self.document = document
+        self.reportsControlFrames = reportsControlFrames
+    }
 
     var body: some View {
         HStack(spacing: 5) {
@@ -38,7 +45,8 @@ struct CaptureToolbarView: View {
 
     private func tool(_ title: String, icon: String, shortcut: String? = nil,
                       prominent: Bool = false, selected: Bool = false, action: @escaping () -> Void) -> some View {
-        CaptureToolButton(title: title, icon: icon, shortcut: shortcut, prominent: prominent, selected: selected, action: action)
+        CaptureToolButton(title: title, icon: icon, shortcut: shortcut, prominent: prominent,
+            selected: selected, reportsControlFrames: reportsControlFrames, action: action)
     }
 }
 
@@ -48,6 +56,7 @@ private struct CaptureToolButton: View {
     let shortcut: String?
     let prominent: Bool
     let selected: Bool
+    let reportsControlFrames: Bool
     let action: () -> Void
     var body: some View {
         Button(action: action) {
@@ -58,6 +67,8 @@ private struct CaptureToolButton: View {
         .accessibilityLabel(title == "Redact" ? "Redact Screenshot" : title)
         .accessibilityAddTraits(selected ? .isSelected : [])
         .onHover { if $0 { NSCursor.arrow.set() } }
+        .captureControlFrame(title == "Redact" ? "Redact Screenshot" : title,
+            enabled: reportsControlFrames)
     }
 }
 
@@ -65,11 +76,14 @@ struct OverlayInspectorView: View {
     let session: OverlaySession
     let document: CaptureDocument
     let width: CGFloat
+    let reportsControlFrames: Bool
 
-    init(session: OverlaySession, document: CaptureDocument, width: CGFloat = 380) {
+    init(session: OverlaySession, document: CaptureDocument, width: CGFloat = 380,
+         reportsControlFrames: Bool = false) {
         self.session = session
         self.document = document
         self.width = width
+        self.reportsControlFrames = reportsControlFrames
     }
 
     var body: some View {
@@ -126,6 +140,7 @@ struct OverlayInspectorView: View {
                             }; session.changed()
                         }), in: 1...(selected.kind == .text || selected.kind == .numberedStep ? 160 : 32))
                         Button("Delete", role: .destructive) { document.removeAnnotation(id: selected.id); session.selectedAnnotationID = nil; session.changed() }
+                            .captureControlFrame("Delete", enabled: reportsControlFrames)
                     }.font(.caption)
                 }
                 HStack {
@@ -133,6 +148,7 @@ struct OverlayInspectorView: View {
                     Button("Redo", systemImage: "arrow.uturn.forward") { document.redo(); session.changed() }.disabled(!document.canRedo)
                     Spacer()
                     Button("Done") { session.annotationTool = nil; session.activePopover = nil }
+                        .captureControlFrame("Done", enabled: reportsControlFrames)
                 }.font(.caption)
             case .more:
                 Text("More")
@@ -141,6 +157,7 @@ struct OverlayInspectorView: View {
                     session.commitStyle(); session.activePopover = .backgrounds
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .captureControlFrame("Background & Style", enabled: reportsControlFrames)
                 if session.mode == .ocr {
                     Button("Recognize Text Again", systemImage: "text.viewfinder") { session.onOCR(document) }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -220,6 +237,7 @@ struct OverlayInspectorView: View {
         .buttonStyle(CaptureButtonStyle(selected: session.annotationTool == kind, compact: true))
         .accessibilityLabel(title)
         .accessibilityAddTraits(session.annotationTool == kind ? .isSelected : [])
+        .captureControlFrame(title, enabled: reportsControlFrames)
     }
 
     private func styleSlider(_ title: String, value: WritableKeyPath<CaptureStyle, Double>, range: ClosedRange<Double>) -> some View {

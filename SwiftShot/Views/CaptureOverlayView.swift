@@ -4,6 +4,8 @@ import AppKit
 struct CaptureOverlayView: View {
     let screen: FrozenScreen
     let session: OverlaySession
+    /// Opt-in layout evidence for process-local native-event tests.
+    let controlFrameObserver: ((CaptureControlFrames) -> Void)?
     @State private var selection: CGRect?
     @State private var hoveredWindow: FrozenWindow?
     @State private var gestureOrigin: CGRect?
@@ -21,6 +23,13 @@ struct CaptureOverlayView: View {
     @State private var toolbarOrigin: CGPoint?
     @State private var toolbarDragOrigin: CGPoint?
     @FocusState private var textFocused: Bool
+
+    init(screen: FrozenScreen, session: OverlaySession,
+         controlFrameObserver: ((CaptureControlFrames) -> Void)? = nil) {
+        self.screen = screen
+        self.session = session
+        self.controlFrameObserver = controlFrameObserver
+    }
 
     private var screenSize: CGSize { screen.frame.size }
     private var sourceImage: CGImage { document?.image ?? screen.image }
@@ -122,6 +131,9 @@ struct CaptureOverlayView: View {
         .clipped()
         .preferredColorScheme(nil)
         .background { presentationObserver }
+        .onPreferenceChange(CaptureControlFramePreferenceKey.self) { frames in
+            controlFrameObserver?(frames)
+        }
         .onChange(of: session.cropMode) { _, _ in selection = nil; gestureOrigin = nil }
         .onChange(of: document?.revision) { _, _ in selection = nil }
         .onChange(of: session.annotationTool) { _, tool in
@@ -352,7 +364,8 @@ struct CaptureOverlayView: View {
         return VStack(spacing: 8) {
             if session.activePopover != nil {
                 ScrollView {
-                    OverlayInspectorView(session: session, document: document, width: frame.width)
+                    OverlayInspectorView(session: session, document: document, width: frame.width,
+                        reportsControlFrames: controlFrameObserver != nil)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(width: frame.width, height: viewportHeight, alignment: .topLeading)
@@ -368,7 +381,8 @@ struct CaptureOverlayView: View {
     private func toolbarPrimary(document: CaptureDocument) -> some View {
         let padding = session.effectiveStyle.backgroundID.isEmpty ? 0 : Int(session.effectiveStyle.padding.rounded())
         return VStack(spacing: 8) {
-            CaptureToolbarView(session: session, document: document).frame(height: 50)
+            CaptureToolbarView(session: session, document: document,
+                reportsControlFrames: controlFrameObserver != nil).frame(height: 50)
             HStack(spacing: 7) {
                 Image(systemName: "line.3.horizontal").font(.system(size: 10))
                 Text("\(Int(document.edits.crop.width) + padding * 2) × \(Int(document.edits.crop.height) + padding * 2) px · PNG")
@@ -400,6 +414,7 @@ struct CaptureOverlayView: View {
                     Button("Add", action: addText).disabled(textValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     Button { textAnchor = nil; textValue = "" } label: { Image(systemName: "xmark") }
                         .accessibilityLabel("Cancel Text")
+                        .captureControlFrame("Cancel Text", enabled: controlFrameObserver != nil)
                 }
                 .padding(.horizontal, 12).frame(height: 48)
                 .captureChrome(capsule: true)
@@ -612,6 +627,37 @@ struct CaptureOverlayView: View {
 
     private func toPixels(_ rect: CGRect) -> CGRect { OverlayGeometry.pixels(from: rect, imageFrame: imageFrame, pixelSize: pixelSize) }
     private func toPoints(_ rect: CGRect) -> CGRect { OverlayGeometry.points(from: rect, imageFrame: imageFrame, pixelSize: pixelSize) }
+}
+
+typealias CaptureControlFrames = [String: [CGRect]]
+
+private struct CaptureControlFramePreferenceKey: PreferenceKey {
+    static let defaultValue: CaptureControlFrames = [:]
+
+    static func reduce(value: inout CaptureControlFrames, nextValue: () -> CaptureControlFrames) {
+        for (label, frames) in nextValue() {
+            value[label, default: []].append(contentsOf: frames)
+        }
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func captureControlFrame(_ label: String, enabled: Bool) -> some View {
+        if enabled {
+            background {
+                GeometryReader { geometry in
+                    Color.clear
+                        .preference(key: CaptureControlFramePreferenceKey.self,
+                            value: [label: [geometry.frame(in: .named("SwiftShotCaptureOverlay"))]])
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+        } else {
+            self
+        }
+    }
 }
 
 /// Positions the actual toolbar content without a preference/State feedback pass.

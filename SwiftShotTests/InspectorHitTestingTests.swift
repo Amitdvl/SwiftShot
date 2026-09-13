@@ -138,11 +138,17 @@ private final class InspectorHitTestingWindow: NSWindow {
 }
 
 @MainActor
+private final class InspectorControlFrameRecorder {
+    var frames: CaptureControlFrames = [:]
+}
+
+@MainActor
 private final class InspectorHitTestingFixture {
     let document: CaptureDocument
     let session: OverlaySession
     private let window: InspectorHitTestingWindow
     private let hosting: NSHostingView<CaptureOverlayView>
+    private let frameRecorder: InspectorControlFrameRecorder
     private let root: URL
     private let originalActivationPolicy: NSApplication.ActivationPolicy
     private var eventMonitor: Any?
@@ -186,7 +192,10 @@ private final class InspectorHitTestingFixture {
         session.selectedAnnotationID = selectedText ? text.id : nil
         session.cropMode = false
         session.activePopover = .annotations
-        hosting = NSHostingView(rootView: CaptureOverlayView(screen: screen, session: session))
+        let frameRecorder = InspectorControlFrameRecorder()
+        self.frameRecorder = frameRecorder
+        hosting = NSHostingView(rootView: CaptureOverlayView(screen: screen, session: session,
+            controlFrameObserver: { [weak frameRecorder] frames in frameRecorder?.frames = frames }))
         hosting.sizingOptions = []
         hosting.frame = CGRect(origin: .zero, size: screen.frame.size)
         hosting.autoresizingMask = [.width, .height]
@@ -425,52 +434,16 @@ private final class InspectorHitTestingFixture {
     }
 
     private func inspectorButtonFrame(label: String, allowClipped: Bool = false) throws -> CGRect {
-        var queue: [Any] = [hosting]
-        var seen = Set<ObjectIdentifier>()
-        var found: [CGRect] = []
-        var evidence: [String] = []
-        while !queue.isEmpty, seen.count < 2048 {
-            let value = queue.removeFirst()
-            guard let object = value as? NSObject,
-                  seen.insert(ObjectIdentifier(object)).inserted else { continue }
-            // SwiftUI's virtual accessibility nodes can expose these Objective-C
-            // getters without declaring the complete NSAccessibilityProtocol.
-            // KVC boxes struct getters (the frame becomes NSValue); invoke only
-            // getters this exact, owned-tree object says it implements.
-            let role = accessibilityValue(object, key: "accessibilityRole") as? String
-            let elementLabel = accessibilityValue(object, key: "accessibilityLabel") as? String
-            let elementFrame = (accessibilityValue(object, key: "accessibilityFrame") as? NSValue)?.rectValue
-            if evidence.count < 40 {
-                evidence.append("type=\(String(describing: type(of: object))) protocol=\(object is any NSAccessibilityProtocol) role=\(role ?? "nil") label=\(elementLabel ?? "nil") frame=\(String(describing: elementFrame))")
-            }
-            if role == NSAccessibility.Role.button.rawValue, elementLabel == label, let elementFrame {
-                let inWindow = window.convertFromScreen(elementFrame)
-                let inHosting = hosting.convert(inWindow, from: nil)
-                let topDown = hosting.isFlipped ? inHosting : CGRect(x: inHosting.minX,
-                    y: hosting.bounds.height - inHosting.maxY, width: inHosting.width, height: inHosting.height)
-                if topDown.width > 0, topDown.height > 0,
-                   (allowClipped || CGRect(origin: .zero, size: hosting.bounds.size).contains(topDown)) { found.append(topDown) }
-            }
-            // NSHostingView can publish its SwiftUI virtual nodes through the
-            // navigation-order accessor while returning nil from the legacy
-            // children accessor (notably on hosted macOS CI runners). Traverse
-            // both supported collections; `seen` removes any overlap.
-            queue.append(contentsOf: accessibilityValue(object, key: "accessibilityChildren") as? [Any] ?? [])
-            queue.append(contentsOf: accessibilityValue(object,
-                key: "accessibilityChildrenInNavigationOrder") as? [Any] ?? [])
+        let bounds = CGRect(origin: .zero, size: hosting.bounds.size)
+        let found = (frameRecorder.frames[label] ?? []).filter { frame in
+            frame.width > 0 && frame.height > 0 && (allowClipped || bounds.contains(frame))
         }
         if found.count != 1 {
-            print("InspectorHitTesting AX lookup=\(label) found=\(found.count) visited=\(seen.count) remaining=\(queue.count)")
-            for line in evidence { print("InspectorHitTesting AX \(line)") }
+            print("InspectorHitTesting frame lookup=\(label) found=\(found.count) available=\(frameRecorder.frames.keys.sorted())")
         }
         _ = try XCTUnwrap(found.count == 1 ? found.first : nil,
-            "SETUP: the owned inspector must expose exactly one visible \(label) button for real mouse targeting")
+            "SETUP: the owned overlay must report exactly one visible \(label) control for real mouse targeting")
         return try XCTUnwrap(found.first)
-    }
-
-    private func accessibilityValue(_ object: NSObject, key: String) -> Any? {
-        guard object.responds(to: NSSelectorFromString(key)) else { return nil }
-        return object.value(forKey: key)
     }
 
     private func recordViewportEvidence() {
