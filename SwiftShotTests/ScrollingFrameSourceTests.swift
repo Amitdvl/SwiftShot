@@ -5,6 +5,29 @@ import XCTest
 
 @MainActor
 final class ScrollingFrameSourceTests: XCTestCase {
+    func testInputPacingPreservesFastGestureExtentInBoundedSteps() {
+        var buffer = ScrollingInputPacer.Buffer()
+        buffer.enqueue(-355)
+
+        var steps = [Int32]()
+        while let step = buffer.nextStep(maximumMagnitude: 32) { steps.append(step) }
+
+        XCTAssertEqual(steps.reduce(0, +), -355)
+        XCTAssertEqual(steps.dropLast(), Array(repeating: -32, count: 11))
+        XCTAssertEqual(steps.last, -3)
+        XCTAssertEqual(buffer.pendingPoints, 0)
+    }
+
+    func testInputPacingCombinesDirectionChangesWithoutOvershoot() {
+        var buffer = ScrollingInputPacer.Buffer()
+        buffer.enqueue(-80)
+        buffer.enqueue(30)
+
+        XCTAssertEqual(buffer.nextStep(maximumMagnitude: 32), -32)
+        XCTAssertEqual(buffer.nextStep(maximumMagnitude: 32), -18)
+        XCTAssertNil(buffer.nextStep(maximumMagnitude: 32))
+    }
+
     func testConfigurationUsesNativeRegionPixelsAndBoundedCadence() throws {
         let region = try makeRegion()
 

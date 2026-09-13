@@ -85,6 +85,7 @@ final class AppState {
     private var lifecycleObservers: [NSObjectProtocol] = []
     private var memoryPressureSource: DispatchSourceMemoryPressure?
     private var scrollingCaptureSession: ScrollingCaptureSession?
+    private let scrollingInputPacer = ScrollingInputPacer()
     private var scrollingRegion: CaptureRegionReference?
     private var scrollingAcceptedFrames = 0
     private var scrollingCancellationInFlight = false
@@ -351,8 +352,10 @@ final class AppState {
                       self.sessionID == token else { return }
                 self.updateScrollingHUD(for: state)
             }
+            scrollingInputPacer.start()
         } catch {
             guard scrollingCaptureSession === session, sessionID == token else { return }
+            scrollingInputPacer.stop()
             scrollingHUD.update(.terminal(reason: error.localizedDescription, sectionCount: 0))
             report(error.localizedDescription)
         }
@@ -374,6 +377,7 @@ final class AppState {
         case .finishing:
             scrollingHUD.update(.finishing(sectionCount: scrollingAcceptedFrames))
         case let .failed(message):
+            scrollingInputPacer.stop()
             scrollingHUD.update(.terminal(reason: message, sectionCount: scrollingAcceptedFrames))
         case .finished, .cancelled:
             break
@@ -384,6 +388,7 @@ final class AppState {
                                         performanceRun: UUID?) async {
         guard token == sessionID, let session = scrollingCaptureSession,
               let region = scrollingRegion else { return }
+        scrollingInputPacer.stop()
         scrollingHUD.update(.finishing(sectionCount: scrollingAcceptedFrames))
         do {
             guard case let .captured(artifact) = try await session.finish(),
@@ -410,6 +415,7 @@ final class AppState {
         guard token == sessionID, let session = scrollingCaptureSession,
               !scrollingCancellationInFlight else { return }
         scrollingCancellationInFlight = true
+        scrollingInputPacer.stop()
         scrollingHUD.dismiss()
         _ = await session.cancel()
         guard token == sessionID, scrollingCaptureSession === session else {
@@ -473,6 +479,7 @@ final class AppState {
     func closeEditor() {
         if scrollingCaptureSession != nil {
             let token = sessionID
+            scrollingInputPacer.stop()
             scrollingHUD.dismiss()
             Task { [weak self] in await self?.cancelScrollingCapture(token: token) }
             return
@@ -865,6 +872,7 @@ final class AppState {
         if let scrollingCaptureSession {
             self.scrollingCaptureSession = nil
             scrollingRegion = nil
+            scrollingInputPacer.stop()
             scrollingHUD.dismiss()
             _ = await scrollingCaptureSession.cancel()
         }

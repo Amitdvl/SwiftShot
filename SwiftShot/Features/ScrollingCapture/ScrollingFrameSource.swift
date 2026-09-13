@@ -2,7 +2,124 @@ import AppKit
 import CoreImage
 import CoreMedia
 import CoreVideo
+import OSLog
 import ScreenCaptureKit
+
+/// Converts arbitrarily large wheel gestures into a short stream of bounded
+/// pixel deltas while scrolling capture is active. The user's full gesture is
+/// preserved; only its delivery rate changes so ScreenCaptureKit can observe
+/// overlapping viewports instead of one uncapturable jump.
+@MainActor
+final class ScrollingInputPacer: NSObject {
+    struct Buffer: Equatable, Sendable {
+        private(set) var pendingPoints: Double = 0
+
+        mutating func enqueue(_ points: Double) {
+            guard points.isFinite else { return }
+            pendingPoints += points
+        }
+
+        mutating func nextStep(maximumMagnitude: Double) -> Int32? {
+            guard maximumMagnitude.isFinite, maximumMagnitude >= 1,
+                  abs(pendingPoints) >= 1 else { return nil }
+            let magnitude = min(abs(pendingPoints), maximumMagnitude)
+            let step = Int32(magnitude.rounded(.down)) * (pendingPoints < 0 ? -1 : 1)
+            pendingPoints -= Double(step)
+            return step == 0 ? nil : step
+        }
+
+        mutating func reset() { pendingPoints = 0 }
+    }
+
+    private static let syntheticMarker: Int64 = 0x5357_5343_524F_4C4C
+    private static let tickInterval: TimeInterval = 1.0 / 120.0
+    private static let maximumPointsPerTick = 32.0
+
+    private let logger = Logger(subsystem: "com.swiftshot.app", category: "ScrollingInput")
+    private var eventTap: CFMachPort?
+    private var eventTapSource: CFRunLoopSource?
+    private var timer: Timer?
+    private var buffer = Buffer()
+    private var latestLocation = CGPoint.zero
+    private var latestFlags = CGEventFlags()
+
+    @discardableResult
+    func start() -> Bool {
+        stop()
+        let mask = CGEventMask(1) << CGEventType.scrollWheel.rawValue
+        let callback: CGEventTapCallBack = { _, type, event, userInfo in
+            guard let userInfo else { return Unmanaged.passUnretained(event) }
+            let pacer = Unmanaged<ScrollingInputPacer>.fromOpaque(userInfo).takeUnretainedValue()
+            if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                MainActor.assumeIsolated { pacer.reenableTap() }
+                return Unmanaged.passUnretained(event)
+            }
+            guard type == .scrollWheel else { return Unmanaged.passUnretained(event) }
+            let consume = MainActor.assumeIsolated { pacer.intercept(event) }
+            return consume ? nil : Unmanaged.passUnretained(event)
+        }
+        guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap,
+                                          place: .headInsertEventTap,
+                                          options: .defaultTap,
+                                          eventsOfInterest: mask,
+                                          callback: callback,
+                                          userInfo: Unmanaged.passUnretained(self).toOpaque()) else {
+            logger.error("Could not install scrolling input pacer")
+            return false
+        }
+        eventTap = tap
+        eventTapSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        if let eventTapSource {
+            CFRunLoopAddSource(CFRunLoopGetMain(), eventTapSource, .commonModes)
+        }
+        CGEvent.tapEnable(tap: tap, enable: true)
+
+        let timer = Timer(timeInterval: Self.tickInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.emitNextStep() }
+        }
+        self.timer = timer
+        RunLoop.main.add(timer, forMode: .common)
+        return true
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+        buffer.reset()
+        if let eventTapSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), eventTapSource, .commonModes) }
+        if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: false) }
+        eventTapSource = nil
+        eventTap = nil
+    }
+
+    private func intercept(_ event: CGEvent) -> Bool {
+        guard event.getIntegerValueField(.eventSourceUserData) != Self.syntheticMarker else {
+            return false
+        }
+        let pointDelta = event.getDoubleValueField(.scrollWheelEventPointDeltaAxis1)
+        let lineDelta = event.getDoubleValueField(.scrollWheelEventDeltaAxis1)
+        let points = pointDelta != 0 ? pointDelta : lineDelta * 40
+        guard points.isFinite, points != 0 else { return false }
+        latestLocation = event.location
+        latestFlags = event.flags
+        buffer.enqueue(points)
+        return true
+    }
+
+    private func emitNextStep() {
+        guard let step = buffer.nextStep(maximumMagnitude: Self.maximumPointsPerTick),
+              let event = CGEvent(scrollWheelEvent2Source: nil, units: .pixel,
+                                  wheelCount: 1, wheel1: step, wheel2: 0, wheel3: 0) else { return }
+        event.location = latestLocation
+        event.flags = latestFlags
+        event.setIntegerValueField(.eventSourceUserData, value: Self.syntheticMarker)
+        event.post(tap: .cgSessionEventTap)
+    }
+
+    private func reenableTap() {
+        if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
+    }
+}
 
 @MainActor
 protocol ScrollingFrameSource: AnyObject {
