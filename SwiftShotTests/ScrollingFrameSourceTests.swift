@@ -21,7 +21,19 @@ final class ScrollingFrameSourceTests: XCTestCase {
         XCTAssertFalse(configuration.scalesToFit)
         XCTAssertTrue(configuration.shouldBeOpaque)
         XCTAssertTrue(CFEqual(configuration.colorSpaceName, CGColorSpace.sRGB as CFString))
-        XCTAssertEqual(CMTimeCompare(configuration.minimumFrameInterval, CMTime(value: 1, timescale: 15)), 0)
+        XCTAssertEqual(CMTimeCompare(configuration.minimumFrameInterval, CMTime(value: 1, timescale: 20)), 0)
+    }
+
+    func testDefaultConfigurationAndFrameBufferFavorContinuity() throws {
+        let region = try makeRegion()
+        let configuration = try ScreenCaptureKitScrollingFrameSource.configuration(
+            for: region, pointPixelScale: 2)
+
+        XCTAssertEqual(configuration.queueDepth,
+                       ScreenCaptureKitScrollingFrameSource.streamQueueDepth)
+        XCTAssertEqual(CMTimeCompare(configuration.minimumFrameInterval,
+                                     CMTime(value: 1, timescale: 20)), 0)
+        XCTAssertEqual(ScreenCaptureKitScrollingFrameSource.bufferedFrameCapacity, 8)
     }
 
     func testConfigurationRejectsUnboundedWindowServerQueue() throws {

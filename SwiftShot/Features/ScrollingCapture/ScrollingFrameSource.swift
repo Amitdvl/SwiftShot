@@ -22,6 +22,9 @@ enum ScrollingFrameSourceError: Error, Equatable, Sendable {
 
 @MainActor
 final class ScreenCaptureKitScrollingFrameSource: ScrollingFrameSource {
+    static let bufferedFrameCapacity = 8
+    static let streamQueueDepth = 5
+
     private let memoryBudget: CaptureMemoryBudget
     private let displayCache = CaptureDisplayMetadataCache<SCDisplay, SCRunningApplication>(
         ownProcessID: ProcessInfo.processInfo.processIdentifier, processID: { $0.processID })
@@ -34,7 +37,7 @@ final class ScreenCaptureKitScrollingFrameSource: ScrollingFrameSource {
     }
 
     static func configuration(for region: CaptureRegionReference, pointPixelScale: CGFloat,
-                              queueDepth: Int = 3) throws -> SCStreamConfiguration {
+                              queueDepth: Int = streamQueueDepth) throws -> SCStreamConfiguration {
         guard (1...8).contains(queueDepth) else {
             throw ScrollingFrameSourceError.invalidQueueDepth(queueDepth)
         }
@@ -54,8 +57,19 @@ final class ScreenCaptureKitScrollingFrameSource: ScrollingFrameSource {
         let configuration = ScreenCaptureService.configuration(size: size, window: false)
         configuration.sourceRect = region.rect
         configuration.queueDepth = queueDepth
-        configuration.minimumFrameInterval = CMTime(value: 1, timescale: 15)
+        configuration.minimumFrameInterval = CMTime(value: 1, timescale: 20)
         return configuration
+    }
+
+    static func makeBufferedFrameStream(capacity: Int = bufferedFrameCapacity)
+        -> (stream: AsyncThrowingStream<ScrollingCaptureFrame, Error>,
+            continuation: AsyncThrowingStream<ScrollingCaptureFrame, Error>.Continuation) {
+        precondition(capacity > 0)
+        // Preserve the oldest pending frames: they are the bridge from the last
+        // accepted viewport. Dropping those bridge frames makes every newer
+        // frame impossible to place once the stitcher falls briefly behind.
+        return AsyncThrowingStream<ScrollingCaptureFrame, Error>.makeStream(
+            bufferingPolicy: .bufferingOldest(capacity))
     }
 
     func start(for region: CaptureRegionReference) async throws
@@ -91,8 +105,7 @@ final class ScreenCaptureKitScrollingFrameSource: ScrollingFrameSource {
         try memoryBudget.reserve(dimensions.reservedBytes)
         reservedBytes = dimensions.reservedBytes
 
-        let pair = AsyncThrowingStream<ScrollingCaptureFrame, Error>.makeStream(
-            bufferingPolicy: .bufferingNewest(3))
+        let pair = Self.makeBufferedFrameStream()
         let output = ScrollingStreamOutput(continuation: pair.continuation,
             expectedWidth: dimensions.width, expectedHeight: dimensions.height,
             expectedScale: scale, expectedPointSize: region.rect.size)

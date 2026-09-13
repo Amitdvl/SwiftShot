@@ -40,6 +40,29 @@ final class ScrollingCaptureSessionTests: XCTestCase {
         _ = await session.cancel()
     }
 
+    func testBurstOfAdjacentFramesKeepsAContinuousBridgeToLaterFrames() async throws {
+        let source = FakeScrollingFrameSource()
+        let session = ScrollingCaptureSession(source: source)
+        try await session.start(for: makeRegion())
+        source.send(try frame(rows: 0..<6))
+        await eventually { session.state.acceptedFrames == 1 }
+
+        // A short producer burst must retain the oldest adjacent frames. Keeping
+        // only the newest frames creates an unrecoverable gap from the last
+        // accepted viewport.
+        for offset in 1...7 {
+            source.send(try frame(rows: offset..<(offset + 6)))
+        }
+        await eventually { session.state.acceptedFrames == 7 }
+        source.send(try frame(rows: 8..<14))
+        await eventually { session.state.outputHeight == 14 }
+
+        guard case let .captured(artifact) = try await session.finish() else {
+            return XCTFail("Expected captured artifact")
+        }
+        XCTAssertEqual(artifact.image.height, 14)
+    }
+
     func testOneFrameFinishIsAnIntentionalValidCapture() async throws {
         let source = FakeScrollingFrameSource()
         let session = ScrollingCaptureSession(source: source)
@@ -201,9 +224,9 @@ private final class FakeScrollingFrameSource: ScrollingFrameSource {
 
     func start(for region: CaptureRegionReference) async throws -> AsyncThrowingStream<ScrollingCaptureFrame, Error> {
         startCount += 1
-        return AsyncThrowingStream(bufferingPolicy: .bufferingNewest(3)) { continuation in
-            self.continuation = continuation
-        }
+        let pair = ScreenCaptureKitScrollingFrameSource.makeBufferedFrameStream()
+        continuation = pair.continuation
+        return pair.stream
     }
 
     func stop() async {
@@ -229,6 +252,11 @@ private final class FakeScrollingFrameSource: ScrollingFrameSource {
 private extension ScrollingCaptureSessionState {
     var acceptedFrames: Int {
         if case let .capturing(progress, _) = self { return progress.acceptedFrames }
+        return 0
+    }
+
+    var outputHeight: Int {
+        if case let .capturing(progress, _) = self { return progress.outputHeight }
         return 0
     }
 }
