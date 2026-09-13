@@ -311,14 +311,12 @@ actor ScrollingStitchEngine {
             let signatureScore = difference(previous,
                 previousStart: insets.top + $0.shift, current,
                 currentStart: insets.top, rows: rows, exhaustive: true)
-            let pixelEvidence = pixelEvidence(previous,
-                previousStart: insets.top + $0.shift, current,
-                currentStart: insets.top, rows: rows)
-            return Seam(shift: $0.shift, score: max(
-                signatureScore,
-                pixelEvidence.averageDifference,
-                pixelEvidence.informativeMismatchScore))
+            return Seam(shift: $0.shift, score: signatureScore)
         }.filter { $0.score <= 8 }
+        candidates.sort { $0.score == $1.score ? $0.shift < $1.shift : $0.score < $1.score }
+        candidates = validatePixelCandidates(Array(candidates.prefix(24)), previous, current,
+                                             insets: insets, bodyHeight: bodyHeight,
+                                             direction: .down)
         candidates.sort { $0.score == $1.score ? $0.shift < $1.shift : $0.score < $1.score }
         if let best = candidates.first {
             // A duplicate frame is always safe to ignore. Repeated visual
@@ -345,14 +343,12 @@ actor ScrollingStitchEngine {
             let signatureScore = difference(previous,
                 previousStart: insets.top, current,
                 currentStart: insets.top + $0.shift, rows: rows, exhaustive: true)
-            let pixelEvidence = pixelEvidence(previous,
-                previousStart: insets.top, current,
-                currentStart: insets.top + $0.shift, rows: rows)
-            return Seam(shift: $0.shift, score: max(
-                signatureScore,
-                pixelEvidence.averageDifference,
-                pixelEvidence.informativeMismatchScore))
+            return Seam(shift: $0.shift, score: signatureScore)
         }.filter { $0.score <= 8 }
+        reverseCandidates.sort { $0.score == $1.score ? $0.shift < $1.shift : $0.score < $1.score }
+        reverseCandidates = validatePixelCandidates(Array(reverseCandidates.prefix(24)), previous, current,
+                                                    insets: insets, bodyHeight: bodyHeight,
+                                                    direction: .up)
         reverseCandidates.sort { $0.score == $1.score ? $0.shift < $1.shift : $0.score < $1.score }
         if let best = reverseCandidates.first,
            !reverseCandidates.dropFirst().contains(where: {
@@ -384,10 +380,52 @@ actor ScrollingStitchEngine {
         return maximum - minimum >= 10
     }
 
+    private enum MatchDirection { case down, up }
+
+    /// Validate likely offsets in score order. Once a valid candidate is found,
+    /// a later candidate whose row-signature score is outside the ambiguity
+    /// band cannot mathematically beat it because pixel validation can only
+    /// increase a score. This keeps full 256×256 evidence without paying for
+    /// every structural lookalike during ordinary scrolling.
+    private static func validatePixelCandidates(_ candidates: [Seam],
+                                                _ previous: PixelFrame,
+                                                _ current: PixelFrame,
+                                                insets: StickyInsets,
+                                                bodyHeight: Int,
+                                                direction: MatchDirection) -> [Seam] {
+        var validated = [Seam]()
+        var bestValidatedScore = Double.infinity
+        for candidate in candidates {
+            if bestValidatedScore.isFinite,
+               candidate.score > max(bestValidatedScore + 0.0001, bestValidatedScore * 1.10) {
+                break
+            }
+            let rows = bodyHeight - candidate.shift
+            let starts: (previous: Int, current: Int)
+            switch direction {
+            case .down:
+                starts = (insets.top + candidate.shift, insets.top)
+            case .up:
+                starts = (insets.top, insets.top + candidate.shift)
+            }
+            let evidence = pixelEvidence(previous, previousStart: starts.previous,
+                                         current, currentStart: starts.current, rows: rows)
+            let score = max(candidate.score, evidence.averageDifference,
+                            evidence.informativeMismatchScore)
+            guard score <= 8 else { continue }
+            validated.append(Seam(shift: candidate.shift, score: score))
+            bestValidatedScore = min(bestValidatedScore, score)
+        }
+        return validated.sorted {
+            $0.score == $1.score ? $0.shift < $1.shift : $0.score < $1.score
+        }
+    }
+
     private static func difference(_ previous: PixelFrame, previousStart: Int,
                                    _ current: PixelFrame, currentStart: Int,
                                    rows: Int, exhaustive: Bool = false) -> Double {
         let rowStep = exhaustive ? 1 : max(1, rows / 192)
+        let columnStep = exhaustive ? 1 : 2
         let columns = min(previous.signatureColumns, current.signatureColumns)
         var total = 0
         var samples = 0
@@ -395,11 +433,11 @@ actor ScrollingStitchEngine {
         while row < rows {
             let a = (previousStart + row) * previous.signatureColumns
             let b = (currentStart + row) * current.signatureColumns
-            for column in 0..<columns {
+            for column in stride(from: 0, to: columns, by: columnStep) {
                 total += abs(Int(previous.rowSignatures[a + column]) -
                              Int(current.rowSignatures[b + column]))
             }
-            samples += columns
+            samples += (columns + columnStep - 1) / columnStep
             row += rowStep
         }
         return samples == 0 ? .infinity : Double(total) / Double(samples)
