@@ -4,17 +4,26 @@
 
 After every session that involves code changes:
 
-1. **Rebuild & package the binary**
+1. **Build and install the canonical app**
    ```sh
    cd ~/SwiftShot
-   xcodegen generate
-   xcodebuild -project SwiftShot.xcodeproj -scheme SwiftShot -configuration Release -derivedDataPath build clean build
-   rm -rf dist && mkdir -p dist
-   cp -R build/Build/Products/Release/SwiftShot.app dist/
-   cd dist && zip -r -q SwiftShot.zip SwiftShot.app
+   ./script/build_and_run.sh --build
    ```
 
-2. **Commit and push**
+   The script uses a `.noindex` derived-data path, installs only
+   `/Applications/SwiftShot.app`, unregisters its disposable build product,
+   and removes that product after installation. Do not replace this with a raw
+   `xcodebuild` command that writes an indexable app bundle under `build/`.
+
+2. **Package only when explicitly requested**
+   ```sh
+   mkdir -p dist
+   ditto -c -k --sequesterRsrc --keepParent /Applications/SwiftShot.app dist/SwiftShot.zip
+   ```
+
+   This creates a distributable ZIP without leaving `dist/SwiftShot.app`.
+
+3. **Commit and push**
    ```sh
    git add <changed files>
    git commit -m "..."

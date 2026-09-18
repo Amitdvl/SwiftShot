@@ -83,6 +83,7 @@ run_step diff-check check_diff || :
 run_step shell-syntax bash -n script/ci_test.sh || :
 run_step benchmark-report-tests python3 -m unittest discover -s script/tests -p 'test_benchmark_report.py' -v || :
 run_step ci-wrapper-tests python3 -m unittest discover -s script/tests -p 'test_ci_script.py' -v || :
+run_step build-artifact-hygiene-tests python3 -m unittest discover -s script/tests -p 'test_build_artifact_hygiene.py' -v || :
 run_step project-generation xcodegen generate || exit "$FIRST_FAILURE"
 
 XCODE_ARGS=(

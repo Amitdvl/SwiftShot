@@ -4,6 +4,7 @@ build/
 *.dmg
 .build/
 DerivedData/
+__pycache__/
 
 # Xcode
 xcuserdata/
