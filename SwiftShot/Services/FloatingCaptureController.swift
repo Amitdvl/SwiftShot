@@ -605,12 +605,11 @@ private struct FloatingCornerButtonStyle: ButtonStyle {
             .foregroundStyle(.white)
             .frame(width: 44, height: 44)
             .background {
-                // These buttons sit directly on arbitrary screenshot pixels.
-                // System glass can become nearly white over light captures,
-                // leaving the white symbol without enough contrast. A dark
-                // neutral scrim keeps the action rail legible regardless of
-                // the image beneath it.
-                shape.fill(Color.black.opacity(backgroundOpacity(isPressed: configuration.isPressed)))
+                // These controls sit over arbitrary screenshot pixels. The
+                // system accent keeps them visibly distinct in both light and
+                // dark captures, without the near-white treatment that a
+                // light glass material can produce.
+                shape.fill(Color.accentColor.opacity(backgroundOpacity(isPressed: configuration.isPressed)))
             }
             .overlay {
                 shape.strokeBorder(.white.opacity(contrast == .increased ? 0.48 : 0.24), lineWidth: 0.5)
@@ -622,9 +621,9 @@ private struct FloatingCornerButtonStyle: ButtonStyle {
 
     private func backgroundOpacity(isPressed: Bool) -> Double {
         if reduceTransparency || contrast == .increased {
-            return isPressed ? 0.92 : 0.82
+            return isPressed ? 0.82 : 1
         }
-        return isPressed ? 0.74 : 0.62
+        return isPressed ? 0.7 : 0.9
     }
 }
 
