@@ -605,20 +605,26 @@ private struct FloatingCornerButtonStyle: ButtonStyle {
             .foregroundStyle(.white)
             .frame(width: 44, height: 44)
             .background {
-                if reduceTransparency || contrast == .increased {
-                    shape.fill(Color(nsColor: .windowBackgroundColor).opacity(configuration.isPressed ? 0.96 : 0.84))
-                } else if #available(macOS 26.0, *) {
-                    Color.clear.glassEffect(.regular, in: shape)
-                } else {
-                    shape.fill(.regularMaterial)
-                }
+                // These buttons sit directly on arbitrary screenshot pixels.
+                // System glass can become nearly white over light captures,
+                // leaving the white symbol without enough contrast. A dark
+                // neutral scrim keeps the action rail legible regardless of
+                // the image beneath it.
+                shape.fill(Color.black.opacity(backgroundOpacity(isPressed: configuration.isPressed)))
             }
             .overlay {
-                shape.strokeBorder(.white.opacity(contrast == .increased ? 0.42 : 0.14), lineWidth: 0.5)
+                shape.strokeBorder(.white.opacity(contrast == .increased ? 0.48 : 0.24), lineWidth: 0.5)
             }
-            .shadow(color: .black.opacity(0.16), radius: 8, y: 3)
+            .shadow(color: .black.opacity(0.28), radius: 8, y: 3)
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.1), value: configuration.isPressed)
+    }
+
+    private func backgroundOpacity(isPressed: Bool) -> Double {
+        if reduceTransparency || contrast == .increased {
+            return isPressed ? 0.92 : 0.82
+        }
+        return isPressed ? 0.74 : 0.62
     }
 }
 
