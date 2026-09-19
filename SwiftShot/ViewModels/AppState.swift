@@ -193,6 +193,7 @@ final class AppState {
         let token = beginSession()
         // Freeze interaction before handing off the final immutable revision.
         overlay.dismiss()
+        hideUtilityWindowsForCapture()
         diagnostics?.setCaptureHidden(true)
         guard token == sessionID else { return false }
         // Check admission without changing coordinator state before starting
@@ -492,6 +493,14 @@ final class AppState {
         phase = .idle
         _ = beginSession()
         statusMessage = nil
+    }
+
+    /// Window selection is a live, transparent surface. Keep normal SwiftShot
+    /// utility windows out before the selector activates the app, otherwise an
+    /// already-open Settings or History window becomes visible underneath it.
+    private func hideUtilityWindowsForCapture() {
+        preferencesWindow?.orderOut(nil)
+        historyWindow?.window?.orderOut(nil)
     }
 
     func reopenLastCapture() async {

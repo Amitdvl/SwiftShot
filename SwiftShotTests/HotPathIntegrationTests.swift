@@ -181,6 +181,20 @@ final class HotPathIntegrationTests: XCTestCase {
         XCTAssertFalse(diagnostics.activeStages.contains(.editorReady), "Acquisition return is not editor presentation")
     }
 
+    func testWindowCaptureHidesOpenSettingsBeforePresentingLiveSelector() async throws {
+        let fixture = try HotPathFixture()
+        defer { fixture.cleanUp() }
+        fixture.app.showPreferences()
+        let settings = try XCTUnwrap(NSApp.windows.first { $0.title == "SwiftShot Settings" })
+        defer { settings.close() }
+        XCTAssertTrue(settings.isVisible)
+
+        await fixture.app.capture(mode: .window)
+
+        XCTAssertFalse(settings.isVisible,
+            "The live Window Capture selector must not reveal SwiftShot's Settings window underneath it")
+    }
+
     // Starting a new diagnostic run must not relabel already captured callbacks or in-flight work.
     func testWindowCaptureRetainsOriginatingIDAcrossAwaitAndLaterInvocation() async throws {
         let diagnostics = PerformanceDiagnostics(recorder: WorkflowPerformance())
