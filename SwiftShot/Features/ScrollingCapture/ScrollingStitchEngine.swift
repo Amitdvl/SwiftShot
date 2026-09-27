@@ -257,7 +257,9 @@ actor ScrollingStitchEngine {
         // With a large scroll step, the midpoint itself can still lie inside
         // the previous frame's bottom overlay. Prefer the incoming frame early
         // enough to replace the final fifth whenever the overlap permits it.
-        let start = insets.top + min(overlap / 2, max(0, overlap - frame.height / 5))
+        let preferredStart = insets.top + min(overlap / 2, max(0, overlap - frame.height / 5))
+        let start = coherentJoinRow(in: frame, shift: shift, top: insets.top,
+                                    end: end, preferred: preferredStart)
         let replacement = Self.rowByteRange(start..<end, width: frame.width)
         let oldTailBytes = max(0, end - start - shift) * frame.width * 4
         body.replaceSubrange((body.count - oldTailBytes)..<body.count,
@@ -265,6 +267,42 @@ actor ScrollingStitchEngine {
         if insets.bottom > 0 {
             stickyBottom = Array(frame.rgba[Self.rowByteRange(end..<frame.height, width: frame.width)])
         }
+    }
+
+    /// A geometrically correct offset can still cut a hover timestamp or an
+    /// animated control in half. Find a band of agreement in the actual output
+    /// pixels before replacing its tail. Search toward the top so the incoming
+    /// frame owns the entire changing control, while still repairing the old
+    /// bottom overlay. Never average across the join: that would blur text.
+    private func coherentJoinRow(in frame: PixelFrame, shift: Int, top: Int,
+                                 end: Int, preferred: Int) -> Int {
+        let overlapEnd = end - shift
+        guard preferred > top, overlapEnd > top else { return top }
+        // Two points on each side protect antialiased glyph edges at either scale.
+        let maximumRadius = max(1, (overlapEnd - top) / 2)
+        let radius = Int(min(CGFloat(maximumRadius), max(1, ceil(frame.scale * 2))))
+        let firstRow = min(overlapEnd, preferred + radius) - 1
+        let rowBytes = frame.width * 4
+        let outputOrigin = body.count - overlapEnd * rowBytes
+        var matchingRows = 0
+        for row in stride(from: firstRow, through: top, by: -1) {
+            let sourceOffset = row * rowBytes
+            let outputOffset = outputOrigin + sourceOffset
+            var agrees = true
+            // Full-resolution RGBA, not bucket averages: a thin icon stroke
+            // matters even when whitespace hides it in a row's mean luminance.
+            for byte in 0..<rowBytes {
+                if abs(Int(body[outputOffset + byte]) - Int(frame.rgba[sourceOffset + byte])) > 3 {
+                    agrees = false
+                    break
+                }
+            }
+            matchingRows = agrees ? matchingRows + 1 : 0
+            if matchingRows >= radius * 2 { return min(preferred, row + radius) }
+        }
+        // If the whole overlap changes, keep one complete incoming viewport
+        // instead of introducing an arbitrary cut through its interior.
+        return top
     }
 
     private func checkCancellation() throws {

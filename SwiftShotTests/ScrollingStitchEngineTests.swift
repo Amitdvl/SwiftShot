@@ -6,6 +6,46 @@ import XCTest
 #endif
 
 final class ScrollingStitchEngineTests: XCTestCase {
+    func testJoinKeepsAppearingAndDisappearingTimestampRowsWhole() async throws {
+        let width = 320
+        let height = 240
+        // Exercise both scrolling and a stationary final refresh, at 1x and 2x.
+        for shift in [0, 24] {
+            for scale: CGFloat in [1, 2] {
+                for appearing in [true, false] {
+                    let join = (height + shift) / 2
+                    let controlRows = (join - 7)..<(join + 7)
+                    var hidden = documentRows(0..<(height + shift), width: width)
+                    for y in controlRows {
+                        for x in 260..<312 {
+                            for channel in 0..<3 { hidden[y][x * 4 + channel] = 250 }
+                        }
+                    }
+                    var visible = hidden
+                    // Narrow glyph strokes are deliberately between the coarse
+                    // fingerprint columns: a row-average-only seam misses them.
+                    for y in controlRows {
+                        for x in [267, 277, 287, 297] {
+                            for channel in 0..<3 { visible[y][x * 4 + channel] = 90 }
+                        }
+                    }
+                    let first = appearing ? hidden : visible
+                    let latest = appearing ? visible : hidden
+                    let engine = ScrollingStitchEngine()
+                    _ = try await engine.ingest(frame(try image(rows: Array(first[0..<height]),
+                                                               width: width), scale: scale))
+                    let result = try await engine.ingest(frame(try image(
+                        rows: Array(latest[shift..<(height + shift)]), width: width), scale: scale))
+                    XCTAssertEqual(result.disposition, shift == 0 ? .unchanged : .appended(rows: shift))
+                    let artifact = try await engine.render()
+                    XCTAssertEqual(artifact.image.height, height + shift)
+                    XCTAssertTrue(try pixels(artifact.image) == pixels(image(rows: latest, width: width)),
+                                  "Timestamp must be whole: shift=\(shift), scale=\(scale), appearing=\(appearing)")
+                }
+            }
+        }
+    }
+
     func testBottomOverlayDoesNotLeaveATrailInRecoveredDocumentRows() async throws {
         let width = 320
         let height = 240
