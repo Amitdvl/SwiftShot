@@ -190,6 +190,13 @@ final class ScrollingCaptureHUDController: ScrollingCaptureHUDPresenting {
         panel.isFloatingPanel = true
         panel.isOpaque = false
         panel.backgroundColor = .clear
+        // The HUD intentionally floats close to (and, on a full-height
+        // selection, can overlap) the viewport. Keep its controls and dimming
+        // layer out of every screen-sharing path as a second line of defense
+        // alongside ScreenCaptureKit's application exclusion. Otherwise the
+        // status glyph can be baked into successive frames and turn into a
+        // vertical trail in the stitched export.
+        panel.sharingType = .none
         panel.hasShadow = false
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false

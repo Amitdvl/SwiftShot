@@ -36,6 +36,8 @@ final class ScrollingCaptureHUDTests: XCTestCase {
         XCTAssertTrue(spotlight?.ignoresMouseEvents == true)
         XCTAssertFalse(panel?.isOpaque ?? true)
         XCTAssertFalse(spotlight?.isOpaque ?? true)
+        XCTAssertEqual(panel?.sharingType, NSWindow.SharingType.none)
+        XCTAssertEqual(spotlight?.sharingType, NSWindow.SharingType.none)
         XCTAssertFalse(panel?.isKeyWindow ?? true)
         XCTAssertFalse(spotlight?.isKeyWindow ?? true)
         XCTAssertTrue(NSApp.keyWindow === keyWindowBefore)
