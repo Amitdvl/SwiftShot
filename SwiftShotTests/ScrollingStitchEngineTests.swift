@@ -6,6 +6,108 @@ import XCTest
 #endif
 
 final class ScrollingStitchEngineTests: XCTestCase {
+    func testBottomOverlayDoesNotLeaveATrailInRecoveredDocumentRows() async throws {
+        let width = 320
+        let height = 240
+        let totalScroll = 240
+        let rows = documentRows(0..<(height + totalScroll), width: width)
+        let engine = ScrollingStitchEngine()
+        for offset in stride(from: 0, through: totalScroll, by: 24) {
+            let viewport = bottomOverlay(Array(rows[offset..<(offset + height)]), width: width)
+            let result = try await engine.ingest(frame(try image(rows: viewport, width: width)))
+            XCTAssertEqual(result.disposition, offset == 0 ? .firstFrame : .appended(rows: 24))
+        }
+        let artifact = try await engine.render()
+        let actual = try pixels(artifact.image)
+        let clean = try pixels(image(rows: rows, width: width))
+        // The last viewport's occluded edge has not been observed clean yet.
+        // Every earlier row has, so none of those pixels may retain the button/fade.
+        let recoveredBytes = (height + totalScroll - 40) * width * 4
+        XCTAssertEqual(artifact.image.height, height + totalScroll)
+        XCTAssertTrue(actual.prefix(recoveredBytes).elementsEqual(clean.prefix(recoveredBytes)),
+                      "New clean overlap must replace old bottom-edge pixels, not freeze a trail")
+    }
+
+    func testOverlayDisappearingAtRestRepairsTheFinalViewportWithoutAddingRows() async throws {
+        let width = 320
+        let height = 240
+        let rows = documentRows(0..<480, width: width)
+        let engine = ScrollingStitchEngine()
+        for offset in stride(from: 0, through: 240, by: 24) {
+            _ = try await engine.ingest(frame(try image(rows: bottomOverlay(
+                Array(rows[offset..<(offset + height)]), width: width), width: width)))
+        }
+        let settled = try await engine.ingest(frame(try image(rows: Array(rows[240..<480]), width: width)))
+        XCTAssertEqual(settled.disposition, .unchanged)
+        XCTAssertNil(settled.extent)
+        let artifact = try await engine.render()
+        XCTAssertEqual(artifact.image.height, 480)
+        XCTAssertTrue(try pixels(artifact.image) == pixels(image(rows: rows, width: width)),
+                      "The settled frame must repair the final fade/button even without scrolling")
+    }
+
+    func testSparseTextAndLargeStepsRecoverPixelsUnderBottomChrome() async throws {
+        let width = 320
+        let height = 240
+        for step in [24, 120, 160] {
+            let totalScroll = step * 5
+            // Sparse pages need small steps to retain enough identifiable text.
+            // Dense pages also exercise narrow overlap after large jumps.
+            let rows = step == 24
+                ? browserLikeRows(count: height + totalScroll, width: width)
+                : documentRows(0..<(height + totalScroll), width: width)
+            let engine = ScrollingStitchEngine()
+            for offset in stride(from: 0, through: totalScroll, by: step) {
+                let result = try await engine.ingest(frame(try image(rows: bottomOverlay(
+                    Array(rows[offset..<(offset + height)]), width: width), width: width)))
+                XCTAssertEqual(result.disposition, offset == 0 ? .firstFrame : .appended(rows: step),
+                               "Sparse text scroll step \(step), offset \(offset)")
+            }
+            _ = try await engine.ingest(frame(try image(
+                rows: Array(rows[totalScroll..<(totalScroll + height)]), width: width)))
+            let artifact = try await engine.render()
+            XCTAssertEqual(artifact.image.height, height + totalScroll)
+            XCTAssertTrue(try pixels(artifact.image) == pixels(image(rows: rows, width: width)),
+                          "Sparse text must remain exact after \(step)-pixel scroll steps")
+        }
+    }
+
+    func testJumpWithTooLittleCleanOverlapDoesNotInventRows() async throws {
+        let width = 320
+        let rows = documentRows(0..<420, width: width)
+        let initial = try image(rows: bottomOverlay(Array(rows[0..<240]), width: width), width: width)
+        let engine = ScrollingStitchEngine()
+        _ = try await engine.ingest(frame(initial))
+        // Of the 60 overlapping rows, 40 are covered by the fade. There is
+        // insufficient clean evidence for a safe seam; the user must back up.
+        let result = try await engine.ingest(frame(try image(rows: bottomOverlay(
+            Array(rows[180..<420]), width: width), width: width)))
+        XCTAssertEqual(result.disposition, .rejected(.insufficientOverlap))
+        let artifact = try await engine.render()
+        XCTAssertEqual(try pixels(artifact.image), try pixels(initial))
+    }
+
+    /// A source app's fixed bottom gradient and circular jump-to-bottom control.
+    private func bottomOverlay(_ rows: [[UInt8]], width: Int) -> [[UInt8]] {
+        var result = rows
+        for y in (rows.count - 40)..<rows.count {
+            let alpha = Double(y - (rows.count - 40)) / 80
+            for x in 0..<width {
+                for channel in 0..<3 {
+                    let index = x * 4 + channel
+                    result[y][index] = UInt8(Double(rows[y][index]) * (1 - alpha) + 255 * alpha)
+                }
+                let dx = x - width / 2
+                let dy = y - (rows.count - 20)
+                if dx * dx + dy * dy < 100 {
+                    let ink: UInt8 = abs(dx) < 2 || (dy > 0 && abs(dx) == 6 - dy) ? 20 : 255
+                    for channel in 0..<3 { result[y][x * 4 + channel] = ink }
+                }
+            }
+        }
+        return result
+    }
+
     func testFirstFrameSeedsProgressAndRendersExactPixels() async throws {
         let source = try image(rows: documentRows(0..<6, width: 5), width: 5)
         let engine = ScrollingStitchEngine()

@@ -92,17 +92,38 @@ actor ScrollingStitchEngine {
         // can make ordinary whitespace look fixed; carrying that guess forward
         // permanently is what caused captures to freeze around 1.1 screens.
         let matchInsets = Self.detectStickyInsets(previous, incoming)
-        let match = try Self.match(previous, incoming, insets: matchInsets,
+        var match = try Self.match(previous, incoming, insets: matchInsets,
                                    minimumOverlapRows: limits.minimumOverlapRows)
+        if case .rejected(.insufficientOverlap) = match {
+            // Source-app bottom chrome can dominate the edge evidence on sparse
+            // text pages. Retry against the interior with the same texture,
+            // overlap, and pixel checks; these are matching-only insets, never
+            // a crop of the exported document. This also recognizes a stationary
+            // viewport when its jump-to-bottom button/gradient disappears.
+            let interiorInsets = StickyInsets(top: matchInsets.top,
+                bottom: max(matchInsets.bottom, incoming.height / 5))
+            let interior = try Self.match(previous, incoming, insets: interiorInsets,
+                minimumOverlapRows: max(limits.minimumOverlapRows, incoming.height / 8))
+            switch interior {
+            case .unchanged, .append: match = interior
+            case .rejected: break
+            }
+        }
         try checkCancellation()
 
         switch match {
         case .unchanged:
+            refreshTail(from: incoming, shift: 0)
+            reference = incoming
             return result(.unchanged)
         case let .rejected(reason):
             logger.debug("Rejected frame: \(String(describing: reason), privacy: .public)")
             return result(.rejected(reason))
         case let .append(seam):
+            let outputInsets = compositionInsets ?? matchInsets
+            guard seam.shift <= height - outputInsets.top - outputInsets.bottom else {
+                return result(.rejected(.insufficientOverlap))
+            }
             guard acceptedFrames < limits.maximumAcceptedFrames else {
                 throw ScrollingStitchError.acceptedFrameLimitExceeded(limit: limits.maximumAcceptedFrames)
             }
@@ -114,11 +135,7 @@ actor ScrollingStitchEngine {
                 applyInitialStickyInsets(matchInsets, frame: previous)
                 compositionInsets = matchInsets
             }
-            let outputInsets = compositionInsets ?? .none
-            let newBodyRange = Self.rowByteRange(
-                (incoming.height - outputInsets.bottom - seam.shift)..<(incoming.height - outputInsets.bottom),
-                width: incoming.width)
-            body.append(contentsOf: incoming.rgba[newBodyRange])
+            refreshTail(from: incoming, shift: seam.shift)
             reference = incoming
             acceptedFrames += 1
             appendedRows += seam.shift
@@ -227,6 +244,27 @@ actor ScrollingStitchEngine {
                                                   width: frame.width)])
         stickyBottom = Array(frame.rgba[Self.rowByteRange((frame.height - insets.bottom)..<frame.height,
                                                           width: frame.width)])
+    }
+
+    /// Join inside the overlap, not at the old viewport's bottom. Pixels near
+    /// that edge may contain a source application's fixed button or fade. As
+    /// scrolling reveals them higher in the next frame, replace the old tail
+    /// with those actual pixels. No blending, erasing, or invented text.
+    private func refreshTail(from frame: PixelFrame, shift: Int) {
+        let insets = compositionInsets ?? .none
+        let end = frame.height - insets.bottom
+        let overlap = max(0, end - insets.top - shift)
+        // With a large scroll step, the midpoint itself can still lie inside
+        // the previous frame's bottom overlay. Prefer the incoming frame early
+        // enough to replace the final fifth whenever the overlap permits it.
+        let start = insets.top + min(overlap / 2, max(0, overlap - frame.height / 5))
+        let replacement = Self.rowByteRange(start..<end, width: frame.width)
+        let oldTailBytes = max(0, end - start - shift) * frame.width * 4
+        body.replaceSubrange((body.count - oldTailBytes)..<body.count,
+                             with: frame.rgba[replacement])
+        if insets.bottom > 0 {
+            stickyBottom = Array(frame.rgba[Self.rowByteRange(end..<frame.height, width: frame.width)])
+        }
     }
 
     private func checkCancellation() throws {
