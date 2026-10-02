@@ -158,6 +158,30 @@ final class AppState {
         catch { report("Couldn't save preferences: \(error.localizedDescription)") }
     }
 
+    /// Applies the persisted preference when the installed app starts. This is
+    /// intentionally separate from `start()` so XCTest hosts never create a
+    /// real login item.
+    func syncOpenAtStartup() {
+        do {
+            try LaunchAtLoginService.setEnabled(appSettings.openAtStartup)
+        } catch {
+            statusMessage = "Couldn't update Open at Startup: \(error.localizedDescription)"
+        }
+    }
+
+    /// Persist the choice only after macOS accepts the corresponding login
+    /// item change, keeping the toggle honest when registration is denied.
+    func setOpenAtStartup(_ enabled: Bool) {
+        guard appSettings.openAtStartup != enabled else { return }
+        do {
+            try LaunchAtLoginService.setEnabled(enabled)
+            appSettings.openAtStartup = enabled
+            saveSettings()
+        } catch {
+            statusMessage = "Couldn't update Open at Startup: \(error.localizedDescription)"
+        }
+    }
+
     /// Reports this request's selector handoff, not an unrelated editor's current phase.
     /// Does not await later interactive selection, Copy, or OCR completion.
     @discardableResult

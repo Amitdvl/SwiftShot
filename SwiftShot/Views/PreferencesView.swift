@@ -30,6 +30,14 @@ struct PreferencesView: View {
                 }
                 Text("PNG · Native screenshot pixels · Lossless export").font(.caption).foregroundStyle(.secondary)
             }
+            Section("Startup") {
+                Toggle("Open at Startup", isOn: Binding(
+                    get: { appState.appSettings.openAtStartup },
+                    set: { appState.setOpenAtStartup($0) }
+                ))
+                Text("SwiftShot opens after you sign in, ready from the menu bar.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("After selecting") {
                 Toggle("Copy immediately", isOn: $state.appSettings.immediateCopy)
                     .onChange(of: appState.appSettings.immediateCopy) { _, _ in appState.saveSettings() }

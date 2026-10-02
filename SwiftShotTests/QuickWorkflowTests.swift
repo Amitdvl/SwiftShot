@@ -7,6 +7,23 @@ final class QuickWorkflowTests: XCTestCase {
                        "A capture must not create floating chrome unless the user enables it or pins it explicitly.")
     }
 
+    func testOpenAtStartupIsEnabledByDefault() {
+        XCTAssertTrue(AppSettings.default.openAtStartup)
+    }
+
+    func testLegacySettingsDefaultOpenAtStartupToEnabled() throws {
+        let json = #"{"saveDirectory":"/tmp","version":4}"#
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+        XCTAssertTrue(settings.openAtStartup)
+    }
+
+    func testOpenAtStartupCanBeDisabledAndRoundTrips() throws {
+        let json = #"{"saveDirectory":"/tmp","openAtStartup":false}"#
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+        let encoded = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(settings)) as? [String: Any])
+        XCTAssertFalse(encoded["openAtStartup"] as? Bool ?? true)
+    }
+
     func testRecentFloatingResultPreferenceCanStillBeEnabledExplicitly() throws {
         let json = #"{"saveDirectory":"/tmp","version":4,"showRecentThumbnail":true}"#
         let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
@@ -50,7 +67,7 @@ final class QuickWorkflowTests: XCTestCase {
         let encoded = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(settings)) as? [String: Any])
         XCTAssertEqual(encoded["privateCapture"] as? Bool, true)
         XCTAssertEqual(encoded["showRecentThumbnail"] as? Bool, false)
-        XCTAssertEqual(encoded["version"] as? Int, 4)
+        XCTAssertEqual(encoded["version"] as? Int, 5)
         XCTAssertEqual(encoded["historyIndexingEnabled"] as? Bool, false)
         XCTAssertEqual(encoded["retentionDays"] as? Int, 7)
         XCTAssertEqual(encoded["shareMaxDimension"] as? Int, 1600)

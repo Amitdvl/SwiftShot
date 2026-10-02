@@ -21,6 +21,9 @@ struct AppSettings: Codable, Sendable {
     }
     var immediateCopy = false
     var privateCapture = false
+    /// SwiftShot is a menu-bar utility, so new installs stay ready after login
+    /// unless the user explicitly turns this off.
+    var openAtStartup = true
     /// Recent captures stay out of the way until the user explicitly asks for
     /// a floating result (or pins one from the capture toolbar).
     var showRecentThumbnail = false
@@ -35,7 +38,7 @@ struct AppSettings: Codable, Sendable {
     static var `default`: AppSettings { AppSettings(saveDirectory: NSHomeDirectory() + "/Desktop") }
     init(saveDirectory: String) { self.saveDirectory = saveDirectory }
     private enum CodingKeys: String, CodingKey {
-        case saveDirectory, style, quickCopyStyle, immediateCopy, privateCapture, showRecentThumbnail
+        case saveDirectory, style, quickCopyStyle, immediateCopy, privateCapture, openAtStartup, showRecentThumbnail
         case historyIndexingEnabled, retentionDays, shareMaxDimension, shortcuts, backgroundName, version
         case workflowStyles, presets, retentionSavedCount, lastRegion
     }
@@ -45,6 +48,7 @@ struct AppSettings: Codable, Sendable {
         saveDirectory = try container.decodeIfPresent(String.self, forKey: .saveDirectory) ?? Self.default.saveDirectory
         immediateCopy = try container.decodeIfPresent(Bool.self, forKey: .immediateCopy) ?? false
         privateCapture = try container.decodeIfPresent(Bool.self, forKey: .privateCapture) ?? false
+        openAtStartup = try container.decodeIfPresent(Bool.self, forKey: .openAtStartup) ?? true
         showRecentThumbnail = try container.decodeIfPresent(Bool.self, forKey: .showRecentThumbnail) ?? false
         historyIndexingEnabled = try container.decodeIfPresent(Bool.self, forKey: .historyIndexingEnabled) ?? true
         retentionDays = min(3650, max(0, try container.decodeIfPresent(Int.self, forKey: .retentionDays) ?? 0))
@@ -83,7 +87,7 @@ struct AppSettings: Codable, Sendable {
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(4, forKey: .version)
+        try container.encode(5, forKey: .version)
         try container.encode(saveDirectory, forKey: .saveDirectory)
         try container.encode(style, forKey: .style)
         try container.encode(quickCopyStyle, forKey: .quickCopyStyle)
@@ -93,6 +97,7 @@ struct AppSettings: Codable, Sendable {
         if let lastRegion, lastRegion.isValid, !lastRegion.isPrivate { try container.encode(lastRegion, forKey: .lastRegion) }
         try container.encode(immediateCopy, forKey: .immediateCopy)
         try container.encode(privateCapture, forKey: .privateCapture)
+        try container.encode(openAtStartup, forKey: .openAtStartup)
         try container.encode(showRecentThumbnail, forKey: .showRecentThumbnail)
         try container.encode(historyIndexingEnabled, forKey: .historyIndexingEnabled)
         try container.encode(retentionDays, forKey: .retentionDays)

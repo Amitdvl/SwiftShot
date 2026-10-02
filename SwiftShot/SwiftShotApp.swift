@@ -37,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         installStatusItem()
+        AppState.shared.syncOpenAtStartup()
         AppState.shared.start()
     }
 
