@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" viewBox="0 0 1200 1200">
+  <defs>
+    <linearGradient id="desk" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#84dff1"/>
+      <stop offset="0.46" stop-color="#d9e8fb"/>
+      <stop offset="1" stop-color="#ff9962"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.2" cy="0.15" r="0.7">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="34"/></filter>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#1a1e28" flood-opacity="0.28"/>
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#1a1e28" flood-opacity="0.16"/>
+    </filter>
+    <filter id="railShadow" x="-20%" y="-40%" width="140%" height="180%">
+      <feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="#15202b" flood-opacity="0.2"/>
+    </filter>
+    <clipPath id="cardClip"><rect x="210" y="150" width="780" height="500" rx="22"/></clipPath>
+    <clipPath id="imageClip"><rect x="230" y="170" width="740" height="460" rx="14"/></clipPath>
+  </defs>
+
+  <!-- Soft desktop context -->
+  <rect width="1200" height="1200" fill="url(#desk)"/>
+  <ellipse cx="220" cy="160" rx="290" ry="180" fill="#d9fbff" opacity="0.62" filter="url(#blur)"/>
+  <ellipse cx="1030" cy="660" rx="250" ry="190" fill="#ff7e8c" opacity="0.34" filter="url(#blur)"/>
+  <rect width="1200" height="1200" fill="url(#glow)"/>
+
+  <!-- The intended borderless pin card -->
+  <g filter="url(#shadow)">
+    <rect x="210" y="150" width="780" height="500" rx="22" fill="#f5f7fa"/>
+    <g clip-path="url(#cardClip)">
+      <!-- Image stage: complete image, fit inside the card -->
+      <rect x="230" y="170" width="740" height="460" rx="14" fill="#e5e9ee"/>
+      <g clip-path="url(#imageClip)">
+        <rect x="230" y="170" width="740" height="460" fill="#eef1f4"/>
+        <!-- neutral letterboxed source screenshot -->
+        <rect x="270" y="203" width="660" height="392" rx="10" fill="#ffffff" stroke="#d9dee5"/>
+        <rect x="270" y="203" width="660" height="42" fill="#f7f8fa"/>
+        <circle cx="292" cy="224" r="5" fill="#d7dce2"/>
+        <circle cx="309" cy="224" r="5" fill="#d7dce2"/>
+        <circle cx="326" cy="224" r="5" fill="#d7dce2"/>
+        <rect x="360" y="218" width="185" height="11" rx="5.5" fill="#dfe4ea"/>
+        <rect x="300" y="278" width="310" height="15" rx="7.5" fill="#27313a" opacity="0.88"/>
+        <rect x="300" y="311" width="540" height="9" rx="4.5" fill="#75808b" opacity="0.58"/>
+        <rect x="300" y="331" width="486" height="9" rx="4.5" fill="#75808b" opacity="0.46"/>
+        <rect x="300" y="351" width="510" height="9" rx="4.5" fill="#75808b" opacity="0.46"/>
+        <rect x="300" y="371" width="420" height="9" rx="4.5" fill="#75808b" opacity="0.46"/>
+        <rect x="300" y="420" width="210" height="11" rx="5.5" fill="#ff713b" opacity="0.72"/>
+        <rect x="300" y="449" width="480" height="9" rx="4.5" fill="#75808b" opacity="0.42"/>
+        <rect x="300" y="469" width="520" height="9" rx="4.5" fill="#75808b" opacity="0.42"/>
+        <rect x="300" y="489" width="360" height="9" rx="4.5" fill="#75808b" opacity="0.42"/>
+        <rect x="300" y="532" width="150" height="28" rx="14" fill="#fff0e9"/>
+        <text x="375" y="551" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="14" font-weight="600" fill="#d85a2d">Screenshot</text>
+      </g>
+
+      <!-- single compact overlay rail -->
+      <g filter="url(#railShadow)">
+        <rect x="246" y="567" width="708" height="56" rx="16" fill="#27313b" fill-opacity="0.82" stroke="#ffffff" stroke-opacity="0.24"/>
+        <rect x="246" y="567" width="708" height="1" fill="#ffffff" fill-opacity="0.38"/>
+        <rect x="260" y="573" width="86" height="44" rx="12" fill="#ff7a3d"/>
+        <text x="303" y="601" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="16" font-weight="650" fill="#ffffff">Copy</text>
+        <circle cx="370" cy="595" r="20" fill="#ffffff" fill-opacity="0.12"/>
+        <path d="M370 584v14m0 0-5-5m5 5 5-5M362 590v14a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-14" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="422" cy="595" r="20" fill="#ffffff" fill-opacity="0.12"/>
+        <path d="M414 603l5-16 5 16m-8-5h6" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="924" cy="595" r="20" fill="#ffffff" fill-opacity="0.12"/>
+        <path d="M917 588l14 14m0-14-14 14" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+      </g>
+    </g>
+    <!-- tiny drag affordance, no title bar -->
+    <rect x="566" y="158" width="68" height="4" rx="2" fill="#202b35" fill-opacity="0.28"/>
+  </g>
+</svg>
