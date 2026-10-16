@@ -14,11 +14,9 @@ struct CaptureToolbarView: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            // Keep the action rail icon-first so the editor can fit the common
-            // actions beside the image at compact sizes. Labels remain exposed
-            // through accessibility and the hover help below.
-            tool("Copy", icon: "document.on.document", shortcut: "⌘C", prominent: true) { session.commitStyle(); session.onCopy(document) }
-            tool("Save", icon: "square.and.arrow.down", shortcut: "⌘S") { session.commitStyle(); session.onSave(document) }
+            // Label the primary handoff actions; editing controls stay compact.
+            tool("Copy", icon: "document.on.document", shortcut: "⌘C", showsTitle: true, prominent: true) { session.commitStyle(); session.onCopy(document) }
+            tool("Save", icon: "square.and.arrow.down", shortcut: "⌘S", showsTitle: true) { session.commitStyle(); session.onSave(document) }
             Divider().frame(height: 20).padding(.horizontal, 3)
             tool("Annotate", icon: "pencil.tip", selected: session.annotationTool != nil || session.activePopover == .annotations) { toggle(.annotations) }
             tool("Redact", icon: "rectangle.fill", shortcut: "X", selected: session.annotationTool == .redact) {
@@ -44,8 +42,8 @@ struct CaptureToolbarView: View {
     }
 
     private func tool(_ title: String, icon: String, shortcut: String? = nil,
-                      prominent: Bool = false, selected: Bool = false, action: @escaping () -> Void) -> some View {
-        CaptureToolButton(title: title, icon: icon, shortcut: shortcut, prominent: prominent,
+                      showsTitle: Bool = false, prominent: Bool = false, selected: Bool = false, action: @escaping () -> Void) -> some View {
+        CaptureToolButton(title: title, icon: icon, shortcut: shortcut, showsTitle: showsTitle, prominent: prominent,
             selected: selected, reportsControlFrames: reportsControlFrames, action: action)
     }
 }
@@ -54,15 +52,23 @@ private struct CaptureToolButton: View {
     let title: String
     let icon: String
     let shortcut: String?
+    let showsTitle: Bool
     let prominent: Bool
     let selected: Bool
     let reportsControlFrames: Bool
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Image(systemName: icon).font(.system(size: 15, weight: .medium))
+            HStack(spacing: 6) {
+                Image(systemName: icon).font(.system(size: 15, weight: .medium))
+                if showsTitle {
+                    Text(title)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+            }
         }
-        .buttonStyle(CaptureButtonStyle(prominent: prominent, selected: selected, compact: true))
+        .buttonStyle(CaptureButtonStyle(prominent: prominent, selected: selected, compact: !showsTitle))
         .help(shortcut.map { "\(title) (\($0))" } ?? title)
         .accessibilityLabel(title == "Redact" ? "Redact Screenshot" : title)
         .accessibilityAddTraits(selected ? .isSelected : [])
