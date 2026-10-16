@@ -26,21 +26,20 @@ final class InspectorHitTestingTests: XCTestCase {
         }
     }
 
-    func testUnpaintedInspectorTailDoesNotSwallowReleasedArrowDrag() async throws {
+    func testReservedWorkspaceReceivesReleasedArrowDragWithToolboxOpen() async throws {
         let fixture = try await InspectorHitTestingFixture()
         defer { fixture.close() }
         try await fixture.proveCanvasDelivery()
 
-        // Native acceptance uses y=500. y=470 is in the same blank tail with
-        // either the ordinary top inset or a notched display's larger inset.
-        // This keeps the regression independent of the machine's screen model.
-        try await fixture.drag(from: CGPoint(x: 200, y: 470), to: CGPoint(x: 500, y: 650))
+        // Use actual image bounds so this contract survives workspace layout
+        // changes while still checking independently chosen source pixels.
+        try await fixture.dragSource(from: CGPoint(x: 342, y: 872), to: CGPoint(x: 942, y: 1232))
 
         XCTAssertEqual(fixture.document.edits.annotations.count, 1,
             "An invisible annotation-inspector viewport swallowed a released canvas drag")
         let arrow = try XCTUnwrap(fixture.document.edits.annotations.first)
         XCTAssertEqual(arrow.kind, .arrow)
-        // Independent oracle: 1220×1632 pixels placed at (29,34), 610×816 pt.
+        // Independent oracle: the same source-pixel endpoints at any preview scale.
         XCTAssertEqual(arrow.start.x, 342, accuracy: 0.001)
         XCTAssertEqual(arrow.start.y, 872, accuracy: 0.001)
         XCTAssertEqual(arrow.end.x, 942, accuracy: 0.001)
@@ -89,7 +88,7 @@ final class InspectorHitTestingTests: XCTestCase {
 
         // Real Text-tool canvas click creates the private view-owned entry row.
         // No test hook sets textAnchor or bypasses the actual gesture handler.
-        try await fixture.clickCanvas(at: CGPoint(x: 100, y: 430))
+        try await fixture.clickCanvas(at: fixture.canvasPoint(for: CGPoint(x: 300, y: 1200)))
         XCTAssertTrue(fixture.isTextEditorFocused,
             "The canvas Text click must focus an editor in the owned test window")
         let textAndStatusHeight = try fixture.inspectorViewportHeight()
@@ -104,10 +103,8 @@ final class InspectorHitTestingTests: XCTestCase {
             "Removing the text row must return its space to the inspector")
         fixture.session.status = ""
         try await fixture.settleLayout()
-        // Fitting content is allowed to leave the scrolling branch entirely.
-        // Its bottom control must become reachable in the newly freed space.
-        XCTAssertGreaterThan(try fixture.visibleButtonFrame(label: "Done").maxY, statusViewport.maxY,
-            "Removing the status row must make the lower inspector content reachable")
+        XCTAssertGreaterThan(try fixture.inspectorViewportHeight(), statusHeight,
+            "Removing the status row must return its space to the scrolling inspector")
 
         fixture.session.status = "Synthetic compact inspector status"
         try await fixture.settleLayout()
@@ -242,7 +239,7 @@ private final class InspectorHitTestingFixture {
     /// fixture from the production regression. Undo restores an empty document;
     /// it does not substitute for either tested mouse gesture.
     func proveCanvasDelivery() async throws {
-        try await drag(from: CGPoint(x: 100, y: 600), to: CGPoint(x: 500, y: 720))
+        try await dragSource(from: CGPoint(x: 142, y: 1132), to: CGPoint(x: 942, y: 1372))
         let annotations = document.edits.annotations
         _ = try XCTUnwrap(annotations.count == 1 ? annotations.first : nil,
             "SETUP: the unobstructed real-canvas control drag must commit exactly one annotation before testing inspector interception")
@@ -259,6 +256,16 @@ private final class InspectorHitTestingFixture {
         try await settle()
         _ = try XCTUnwrap(document.edits.annotations.isEmpty && !document.canUndo ? document : nil,
             "SETUP: undo must clear the control annotation before the actual regression")
+    }
+
+    func canvasPoint(for pixel: CGPoint) throws -> CGPoint {
+        let frame = try XCTUnwrap(frameRecorder.frames["Output Bounds"]?.first)
+        return CGPoint(x: frame.minX + pixel.x / 1220 * frame.width,
+                       y: frame.minY + pixel.y / 1632 * frame.height)
+    }
+
+    func dragSource(from start: CGPoint, to end: CGPoint) async throws {
+        try await drag(from: canvasPoint(for: start), to: canvasPoint(for: end))
     }
 
     func drag(from start: CGPoint, to end: CGPoint) async throws {

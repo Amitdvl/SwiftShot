@@ -23,6 +23,7 @@ struct CaptureOverlayView: View {
     @State private var toolbarOrigin: CGPoint?
     @State private var toolbarDragOrigin: CGPoint?
     @FocusState private var textFocused: Bool
+    @Environment(\.colorScheme) private var colorScheme
 
     init(screen: FrozenScreen, session: OverlaySession,
          controlFrameObserver: ((CaptureControlFrames) -> Void)? = nil) {
@@ -37,7 +38,11 @@ struct CaptureOverlayView: View {
     private var desktopImageFrame: CGRect {
         OverlayGeometry.imageFrame(imageSize: CGSize(width: screen.image.width, height: screen.image.height), screenSize: screenSize)
     }
-    private var imageFrame: CGRect { document != nil ? (session.imagePlacement ?? desktopImageFrame) : desktopImageFrame }
+    private var imageFrame: CGRect {
+        let native = session.imagePlacement ?? desktopImageFrame
+        guard document != nil, session.cropMode else { return document != nil ? native : desktopImageFrame }
+        return editorLayout.fittedCanvas(size: native.size)
+    }
     private var document: CaptureDocument? { session.activeScreenID == screen.id ? session.document : nil }
     private var crop: CGRect? { selection.map(toPixels) ?? document?.edits.crop }
     private var sourceFrame: CGRect? { crop.map(toPoints) ?? hoveredWindow?.frame }
@@ -45,13 +50,9 @@ struct CaptureOverlayView: View {
 
     private var canvasFrame: CGRect? {
         guard let sourceFrame else { return nil }
-        guard isStyled else { return sourceFrame }
-        let padding = CGFloat(session.effectiveStyle.padding.rounded()) * imageFrame.width / pixelSize.width
-        let proposed = sourceFrame.insetBy(dx: -padding, dy: -padding)
-        let scale = min(1, (screenSize.width - 48) / proposed.width, (screenSize.height - 110) / proposed.height)
-        let width = proposed.width * scale, height = proposed.height * scale
-        return CGRect(x: min(max(24, proposed.midX - width / 2), screenSize.width - width - 24),
-                      y: min(max(24, proposed.midY - height / 2), screenSize.height - height - 24), width: width, height: height)
+        guard document != nil, !session.cropMode else { return sourceFrame }
+        let padding = isStyled ? CGFloat(session.effectiveStyle.padding.rounded()) * imageFrame.width / pixelSize.width : 0
+        return editorLayout.fittedCanvas(size: sourceFrame.insetBy(dx: -padding, dy: -padding).size)
     }
 
     private var screenshotFrame: CGRect? {
@@ -68,35 +69,23 @@ struct CaptureOverlayView: View {
     }
 
     private var toolbarAnchor: CGPoint {
-        let automatic = OverlayToolbarLayout.frame(screen: screenSize, topInset: toolbarTopInset,
-            size: CGSize(width: min(428, screenSize.width - 28), height: 80),
-            near: canvasFrame ?? .zero)
-        return toolbarOrigin ?? automatic.origin
+        editorLayout.toolbarFrame(manualOrigin: toolbarOrigin).origin
     }
 
-    private var primaryToolbarFrame: CGRect {
-        OverlayToolbarLayout.frame(screen: screenSize, topInset: toolbarTopInset,
-            size: CGSize(width: min(428, screenSize.width - 28), height: 80),
-            near: canvasFrame ?? .zero, manualOrigin: toolbarAnchor)
-    }
-
-    /// The inspector gets its own placement so expanding annotation controls
-    /// never pushes the action rail over the capture. Prefer a free side of
-    /// the canvas, then fall back to the least-obstructing display edge.
-    private var inspectorFrame: CGRect {
-        let width = min(360, max(240, screenSize.width - 28))
-        // Keep the inspector short enough to leave a clear reading area on
-        // compact displays. Overflow remains reachable through the real
-        // scroll viewport inside the panel.
-        let height = min(380, max(180, screenSize.height - toolbarTopInset - 80))
-        return OverlayGeometry.inspectorFrame(canvas: canvasFrame ?? .zero,
-            toolbar: primaryToolbarFrame, size: CGSize(width: width, height: height),
-            screen: screenSize, topInset: toolbarTopInset)
-    }
+    private var editorLayout: CaptureEditorLayout { CaptureEditorLayout(screen: screenSize, topInset: toolbarTopInset) }
+    private var inspectorFrame: CGRect { editorLayout.inspector }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            if !screen.isLive {
+            if document != nil {
+                Color(white: colorScheme == .dark ? 0.12 : 0.92)
+                if session.cropMode {
+                    Image(decorative: sourceImage, scale: 1).resizable().interpolation(.none)
+                        .frame(width: imageFrame.width, height: imageFrame.height)
+                        .position(x: imageFrame.midX, y: imageFrame.midY)
+                        .opacity(0.3).accessibilityHidden(true)
+                }
+            } else if !screen.isLive {
                 Color.black
                 Image(decorative: screen.image, scale: 1)
                 .resizable().interpolation(.none)
@@ -104,7 +93,7 @@ struct CaptureOverlayView: View {
                 .position(x: desktopImageFrame.midX, y: desktopImageFrame.midY)
                 .accessibilityHidden(true)
             }
-            Color.black.opacity(document == nil ? (screen.isLive ? 0.08 : 0.35) : 0.56)
+            if document == nil { Color.black.opacity(screen.isLive ? 0.08 : 0.35) }
             if let crop, let screenshotFrame, let canvasFrame, let captured = sourceImage.cropping(to: crop) {
                 selectedImage(captured, crop: crop, screenshot: screenshotFrame, canvas: canvasFrame)
             } else if let hoveredWindow, let snapshot = hoveredWindow.snapshot {
@@ -116,12 +105,15 @@ struct CaptureOverlayView: View {
             if let sourceFrame, document == nil || session.cropMode {
                 selectionChrome(sourceFrame)
             }
+            if document != nil, let canvasFrame {
+                outputBoundary(canvasFrame)
+            }
             if let annotation = draftAnnotation ?? session.selectedAnnotation, session.annotationTool == nil, document != nil {
                 annotationChrome(annotation)
             }
             if let pointer, document == nil, !screen.isLive { magnifier(at: pointer) }
-            if let document, let canvasFrame {
-                toolbar(document: document, selection: canvasFrame)
+            if let document, canvasFrame != nil {
+                toolbar(document: document)
             } else {
                 instruction
             }
@@ -184,6 +176,11 @@ struct CaptureOverlayView: View {
         .frame(width: screenshot.width, height: screenshot.height)
         .clipShape(RoundedRectangle(cornerRadius: isStyled ? CGFloat(session.effectiveStyle.cornerRadius) * screenshot.width / crop.width : 0))
         return ZStack(alignment: .topLeading) {
+            if !isStyled {
+                CaptureTransparencyGrid()
+                    .frame(width: canvas.width, height: canvas.height)
+                    .position(x: canvas.midX, y: canvas.midY)
+            }
             if isStyled {
                 ZStack {
                     // Export composites decorative alpha over white, never the
@@ -294,6 +291,8 @@ struct CaptureOverlayView: View {
 
     private func selectionChrome(_ rect: CGRect) -> some View {
         ZStack(alignment: .topLeading) {
+            Rectangle().strokeBorder(.black.opacity(0.9), lineWidth: 3)
+                .frame(width: rect.width, height: rect.height).position(x: rect.midX, y: rect.midY)
             Rectangle().strokeBorder(.white, lineWidth: 1)
                 .frame(width: rect.width, height: rect.height).position(x: rect.midX, y: rect.midY)
             if document != nil {
@@ -310,6 +309,26 @@ struct CaptureOverlayView: View {
                 .position(x: min(max(70, rect.midX), screenSize.width - 70), y: max(16, rect.minY - 18))
         }
         .allowsHitTesting(false)
+    }
+
+    /// These strokes are editor chrome only, outside the bitmap/export pipeline.
+    /// Both light and dark edges remain visible regardless of the image content.
+    private func outputBoundary(_ rect: CGRect) -> some View {
+        ZStack(alignment: .topLeading) {
+            Rectangle().strokeBorder(.black.opacity(0.9), lineWidth: 3)
+                .overlay { Rectangle().strokeBorder(.white, lineWidth: 1) }
+                .frame(width: rect.width, height: rect.height)
+                .captureControlFrame("Output Bounds", enabled: controlFrameObserver != nil)
+                .position(x: rect.midX, y: rect.midY)
+            Text(session.cropMode ? "Crop · Drag edges to resize" : "Output · PNG")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: editorLayout.workspace.width, alignment: .leading)
+                .position(x: editorLayout.workspace.midX, y: toolbarTopInset + 10)
+        }
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(session.cropMode ? "Crop boundary" : "PNG output boundary")
     }
 
     private var instruction: some View {
@@ -334,13 +353,13 @@ struct CaptureOverlayView: View {
         .position(x: screenSize.width / 2, y: max(50, screenSize.height - 62))
     }
 
-    private func toolbar(document: CaptureDocument, selection: CGRect) -> some View {
+    private func toolbar(document: CaptureDocument) -> some View {
         ZStack(alignment: .topLeading) {
-            OverlayToolbarPlacement(screen: screenSize, topInset: toolbarTopInset,
-                selection: selection, manualOrigin: toolbarAnchor) {
-                toolbarPrimary(document: document)
-                    .frame(width: min(428, screenSize.width - 28))
-            }
+            let frame = editorLayout.toolbarFrame(manualOrigin: toolbarOrigin)
+            toolbarPrimary(document: document)
+                .frame(width: frame.width)
+                .captureControlFrame("Editor Toolbar", enabled: controlFrameObserver != nil)
+                .position(x: frame.midX, y: frame.midY)
             if session.activePopover != nil || textAnchor != nil || !session.status.isEmpty {
                 inspector(document: document)
                     .transition(.opacity)
@@ -374,6 +393,7 @@ struct CaptureOverlayView: View {
             supportingDetails(document: document)
         }
         .frame(width: frame.width, height: panelHeight, alignment: .topLeading)
+        .captureControlFrame("Editor Inspector", enabled: controlFrameObserver != nil)
         .position(x: frame.midX, y: frame.midY)
         .captureGlassGroup()
     }
@@ -392,8 +412,8 @@ struct CaptureOverlayView: View {
             .frame(maxWidth: .infinity).frame(height: 22)
             .captureChrome(capsule: true)
             .contentShape(Rectangle())
-            .help("Drag to move the toolbar")
-            .accessibilityLabel("Output dimensions. Drag to move the toolbar.")
+            .help("Drag horizontally to move the toolbar below the image")
+            .accessibilityLabel("Output dimensions. Drag horizontally to move the toolbar.")
         }
         .overlay {
             GeometryReader { geometry in
@@ -463,8 +483,7 @@ struct CaptureOverlayView: View {
                 .onEnded { value in
                     if let origin = toolbarDragOrigin {
                         let destination = CGPoint(x: origin.x + value.translation.width, y: origin.y + value.translation.height)
-                        toolbarOrigin = OverlayToolbarLayout.frame(screen: screenSize, topInset: toolbarTopInset,
-                            size: frame.size, near: .zero, manualOrigin: destination).origin
+                        toolbarOrigin = editorLayout.toolbarFrame(manualOrigin: destination).origin
                     }
                     toolbarDragOrigin = nil
                     NSCursor.openHand.set()
@@ -629,6 +648,60 @@ struct CaptureOverlayView: View {
     private func toPoints(_ rect: CGRect) -> CGRect { OverlayGeometry.points(from: rect, imageFrame: imageFrame, pixelSize: pixelSize) }
 }
 
+/// A stable workspace is reserved even with the toolbox closed. Presentation
+/// state must never obscure or reframe the image, including a full-display crop.
+struct CaptureEditorLayout {
+    let workspace: CGRect
+    let inspector: CGRect
+    let toolbar: CGRect
+    private let screen: CGSize
+
+    init(screen: CGSize, topInset: CGFloat) {
+        self.screen = screen
+        let inspectorWidth = min(360, max(300, screen.width * 0.27))
+        let toolbarWidth = min(428, screen.width - 28)
+        toolbar = CGRect(x: (screen.width - toolbarWidth) / 2,
+                         y: screen.height - 94, width: toolbarWidth, height: 80)
+        let top = topInset + 38
+        inspector = CGRect(x: screen.width - inspectorWidth - 14, y: topInset + 32,
+            width: inspectorWidth, height: min(380, max(120, toolbar.minY - topInset - 46)))
+        workspace = CGRect(x: 24, y: top, width: max(1, inspector.minX - 48),
+                           height: max(1, toolbar.minY - top - 24))
+    }
+
+    func fittedCanvas(size: CGSize) -> CGRect {
+        guard size.width > 0, size.height > 0 else { return .zero }
+        let scale = min(1, workspace.width / size.width, workspace.height / size.height)
+        let fitted = CGSize(width: size.width * scale, height: size.height * scale)
+        return CGRect(x: workspace.midX - fitted.width / 2, y: workspace.midY - fitted.height / 2,
+                      width: fitted.width, height: fitted.height)
+    }
+
+    func toolbarFrame(manualOrigin: CGPoint?) -> CGRect {
+        guard let manualOrigin else { return toolbar }
+        return CGRect(x: min(max(14, manualOrigin.x), screen.width - toolbar.width - 14),
+                      y: toolbar.minY, width: toolbar.width, height: toolbar.height)
+    }
+}
+
+/// Transparency has a visible meaning in the editor instead of revealing the
+/// dimmed desktop. This view is never passed to ImageRenderer or export services.
+private struct CaptureTransparencyGrid: View {
+    var body: some View {
+        Canvas { context, size in
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(white: 0.88)))
+            let cell: CGFloat = 8
+            for row in 0..<Int(ceil(size.height / cell)) {
+                for column in 0..<Int(ceil(size.width / cell)) where (row + column).isMultiple(of: 2) {
+                    context.fill(Path(CGRect(x: CGFloat(column) * cell, y: CGFloat(row) * cell,
+                        width: cell, height: cell)), with: .color(Color(white: 0.74)))
+                }
+            }
+        }
+        .clipped().accessibilityHidden(true)
+    }
+}
+
 typealias CaptureControlFrames = [String: [CGRect]]
 
 private struct CaptureControlFramePreferenceKey: PreferenceKey {
@@ -657,62 +730,5 @@ extension View {
         } else {
             self
         }
-    }
-}
-
-/// Positions the actual toolbar content without a preference/State feedback pass.
-/// The full-screen layout itself adds no hit shape or background over the canvas.
-private struct OverlayToolbarPlacement: Layout {
-    let screen: CGSize
-    let topInset: CGFloat
-    let selection: CGRect
-    let manualOrigin: CGPoint?
-    var expandsAbove = false
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize { screen }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        guard let toolbar = subviews.first else { return }
-        let width = min(428, screen.width - 28)
-        let content = toolbar.sizeThatFits(ProposedViewSize(width: width, height: nil))
-        let origin = manualOrigin.map {
-            CGPoint(x: $0.x, y: expandsAbove ? $0.y + 80 - content.height : $0.y)
-        }
-        let frame = OverlayToolbarLayout.frame(screen: screen, topInset: topInset,
-            size: CGSize(width: width, height: content.height), near: selection, manualOrigin: origin)
-        toolbar.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
-            anchor: .topLeading, proposal: ProposedViewSize(width: frame.width, height: frame.height))
-    }
-}
-
-/// Reserves fixed chrome and optional rows before capping the inspector's content.
-struct OverlayToolbarLayout {
-    let screen: CGSize
-    let topInset: CGFloat
-    let size: CGSize
-    let inspectorHeight: CGFloat
-
-    init(screen: CGSize, topInset: CGFloat, inspectorHeight preferred: CGFloat, hasTextEntry: Bool, hasStatus: Bool, availableHeight: CGFloat? = nil) {
-        self.screen = screen
-        self.topInset = topInset
-        // Toolbar + dimensions strip, then eight points between optional rows.
-        let fixedHeight: CGFloat = 50 + 8 + 22 + (hasTextEntry ? 56 : 0) + (hasStatus ? 56 : 0)
-        let inspectorGap: CGFloat = preferred > 0 ? 8 : 0
-        inspectorHeight = min(preferred, max(0, (availableHeight ?? (screen.height - topInset - 14)) - fixedHeight - inspectorGap))
-        size = CGSize(width: min(428, screen.width - 28), height: fixedHeight + inspectorGap + inspectorHeight)
-    }
-
-    func frame(near selection: CGRect, manualOrigin: CGPoint? = nil) -> CGRect {
-        Self.frame(screen: screen, topInset: topInset, size: size, near: selection, manualOrigin: manualOrigin)
-    }
-
-    static func frame(screen: CGSize, topInset: CGFloat, size: CGSize,
-                      near selection: CGRect, manualOrigin: CGPoint? = nil) -> CGRect {
-        let available = CGSize(width: screen.width, height: screen.height - topInset)
-        let automatic = OverlayGeometry.toolbarFrame(selection: selection.offsetBy(dx: 0, dy: -topInset), size: size, screen: available)
-            .offsetBy(dx: 0, dy: topInset)
-        let origin = manualOrigin ?? automatic.origin
-        return CGRect(x: min(max(14, origin.x), screen.width - size.width - 14),
-                      y: min(max(topInset, origin.y), screen.height - size.height - 14), width: size.width, height: size.height)
     }
 }

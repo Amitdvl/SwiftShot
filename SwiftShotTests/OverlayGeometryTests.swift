@@ -3,6 +3,15 @@ import AppKit
 @testable import SwiftShot
 
 final class OverlayGeometryTests: XCTestCase {
+    func testFittedCropRoundTripDoesNotAddPixelsAtFractionalPreviewScale() {
+        let frame = CaptureEditorLayout(screen: CGSize(width: 1470, height: 956), topInset: 40)
+            .fittedCanvas(size: CGSize(width: 1470, height: 956))
+        let pixels = CGSize(width: 2940, height: 1912)
+        let crop = CGRect(x: 1080, y: 740, width: 1200, height: 800)
+        let preview = OverlayGeometry.points(from: crop, imageFrame: frame, pixelSize: pixels)
+        XCTAssertEqual(OverlayGeometry.pixels(from: preview, imageFrame: frame, pixelSize: pixels), crop)
+    }
+
     func testRetinaCropPreservesOriginalPixelsAndRoundsOutward() {
         let result = OverlayGeometry.pixels(from: CGRect(x: 10.25, y: 20.5, width: 100.5, height: 80),
             imageFrame: CGRect(x: 0, y: 0, width: 1440, height: 900), pixelSize: CGSize(width: 2880, height: 1800))
@@ -46,69 +55,28 @@ final class OverlayGeometryTests: XCTestCase {
                        CGRect(x: 120, y: 160, width: 1480, height: 840))
     }
 
-    func testToolbarClampsAtAllEdgesIncludingExpandedInspector() {
-        let screen = CGSize(width: 800, height: 600)
-        for x: CGFloat in [0, 700] {
-            for y: CGFloat in [0, 550] {
-                let frame = OverlayGeometry.toolbarFrame(selection: CGRect(x: x, y: y, width: 100, height: 50),
-                    size: CGSize(width: 428, height: 530), screen: screen)
-                XCTAssertGreaterThanOrEqual(frame.minX, 14)
-                XCTAssertGreaterThanOrEqual(frame.minY, 14)
-                XCTAssertLessThanOrEqual(frame.maxX, 786)
-                XCTAssertLessThanOrEqual(frame.maxY, 586)
-            }
-        }
-    }
-
-    func testExpandedToolbarFitsOnFirstLayoutWithoutMeasurementFeedback() {
-        let screen = CGSize(width: 1280, height: 800)
-        let layout = OverlayToolbarLayout(screen: screen, topInset: 14, inspectorHeight: 440, hasTextEntry: false, hasStatus: false)
-        let frame = layout.frame(near: CGRect(x: 150, y: 90, width: 950, height: 620))
-        XCTAssertEqual(layout.inspectorHeight, 440)
-        XCTAssertEqual(frame.height, 528)
-        XCTAssertGreaterThanOrEqual(frame.minY, 14)
-        XCTAssertLessThanOrEqual(frame.maxY, 786)
-    }
-
-    func testSmallDisplayScrollsInspectorAndRespectsNotchAndManualPosition() {
-        let screen = CGSize(width: 800, height: 480)
-        let layout = OverlayToolbarLayout(screen: screen, topInset: 40, inspectorHeight: 440, hasTextEntry: true, hasStatus: true)
-        XCTAssertEqual(layout.inspectorHeight, 226)
+    func testToolbarClampsToItsRailAtAllDragDestinations() {
+        let layout = CaptureEditorLayout(screen: CGSize(width: 800, height: 480), topInset: 40)
         for origin in [CGPoint(x: -500, y: -500), CGPoint(x: 2000, y: 2000)] {
-            let frame = layout.frame(near: CGRect(origin: .zero, size: screen), manualOrigin: origin)
+            let frame = layout.toolbarFrame(manualOrigin: origin)
             XCTAssertGreaterThanOrEqual(frame.minX, 14)
-            XCTAssertGreaterThanOrEqual(frame.minY, 40)
             XCTAssertLessThanOrEqual(frame.maxX, 786)
-            XCTAssertLessThanOrEqual(frame.maxY, 466)
+            XCTAssertEqual(frame.minY, 386)
+            XCTAssertEqual(frame.maxY, 466)
+            XCTAssertTrue(frame.intersection(layout.workspace).isEmpty,
+                "Dragging the toolbar must never move it onto the image")
         }
     }
 
-    func testInspectorMovesBesideCanvasBeforeCoveringItsCenter() {
-        let screen = CGSize(width: 1280, height: 800)
-        let canvas = CGRect(x: 390, y: 150, width: 500, height: 500)
-        let toolbar = CGRect(x: 456, y: 674, width: 368, height: 80)
-        let frame = OverlayGeometry.inspectorFrame(canvas: canvas, toolbar: toolbar,
-            size: CGSize(width: 360, height: 400), screen: screen, topInset: 14)
-
-        XCTAssertLessThanOrEqual(frame.intersection(canvas).width * frame.intersection(canvas).height, 1)
-        XCTAssertLessThanOrEqual(frame.intersection(toolbar).width * frame.intersection(toolbar).height, 1)
-        XCTAssertGreaterThanOrEqual(frame.minX, 14)
-        XCTAssertGreaterThanOrEqual(frame.minY, 14)
-        XCTAssertLessThanOrEqual(frame.maxX, 1266)
-        XCTAssertLessThanOrEqual(frame.maxY, 786)
-    }
-
-    func testInspectorUsesLeastObstructingEdgeWhenCanvasFillsDisplay() {
-        let screen = CGSize(width: 800, height: 480)
-        let canvas = CGRect(x: 0, y: 0, width: 800, height: 480)
-        let frame = OverlayGeometry.inspectorFrame(canvas: canvas,
-            toolbar: CGRect(x: 220, y: 390, width: 360, height: 76),
-            size: CGSize(width: 340, height: 360), screen: screen, topInset: 40)
-
-        XCTAssertEqual(frame.width, 340)
-        XCTAssertEqual(frame.height, 360)
-        XCTAssertTrue(frame.minX == 14 || frame.maxX == 786,
-                      "A full-screen canvas should dock the inspector to a side edge")
+    func testCompactInspectorAndToolbarHaveSeparateSpaceIncludingNotch() {
+        let layout = CaptureEditorLayout(screen: CGSize(width: 800, height: 480), topInset: 40)
+        XCTAssertGreaterThanOrEqual(layout.inspector.minY, 40)
+        XCTAssertGreaterThanOrEqual(layout.inspector.width, 300,
+            "The tool grid needs room for readable labels")
+        XCTAssertLessThanOrEqual(layout.inspector.maxX, 786)
+        XCTAssertLessThan(layout.inspector.maxY, layout.toolbar.minY)
+        XCTAssertTrue(layout.inspector.intersection(layout.workspace).isEmpty)
+        XCTAssertTrue(layout.toolbar.intersection(layout.workspace).isEmpty)
     }
 
     func testMoveAndResizeCannotEscapeDisplayOrInvertBounds() {

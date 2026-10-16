@@ -116,6 +116,7 @@ struct OverlayInspectorView: View {
                     annotation("Steps", icon: "1.circle", kind: .numberedStep)
                     annotation("Spotlight", icon: "light.beacon.max", kind: .spotlight)
                     Button("Select") { session.annotationTool = nil }
+                        .lineLimit(1).fixedSize(horizontal: true, vertical: false)
                         .frame(maxWidth: .infinity)
                 }
                 Text(annotationHint).font(.caption).foregroundStyle(.secondary)
@@ -155,7 +156,7 @@ struct OverlayInspectorView: View {
                     Spacer()
                     Button("Done") { session.annotationTool = nil; session.activePopover = nil }
                         .captureControlFrame("Done", enabled: reportsControlFrames)
-                }.font(.caption)
+                }.font(.caption).lineLimit(1).fixedSize(horizontal: false, vertical: true)
             case .more:
                 Text("More")
                     .font(.title3.weight(.semibold))
@@ -236,7 +237,7 @@ struct OverlayInspectorView: View {
         } label: {
             VStack(spacing: 5) {
                 Image(systemName: icon).font(.system(size: 18))
-                Text(title).font(.caption)
+                Text(title).font(.caption).lineLimit(1).minimumScaleFactor(0.85)
             }
             .frame(maxWidth: .infinity).frame(height: 48)
         }

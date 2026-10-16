@@ -34,6 +34,7 @@
 		258DDDAD0DD26210A4A8208E /* WorkflowCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC111FA09B3FDB84C26F6E6C /* WorkflowCoordinatorTests.swift */; };
 		2831132482A10D533FC2D04A /* CaptureAcquisitionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12470C18B6E135BFC268FC20 /* CaptureAcquisitionPolicy.swift */; };
 		2BE0C91D385C26F4886F2827 /* OverlayGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB30857EA46F5B4F51B162B /* OverlayGeometryTests.swift */; };
+		303AC939A442F1F39E17D262 /* CaptureBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63C56E435E18AAE86817EBDD /* CaptureBoundaryTests.swift */; };
 		32DA78C191A9F3C89127335E /* LifecycleRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02DC817FDA588EFA66E0370F /* LifecycleRegressionTests.swift */; };
 		348355135999F8F71000CC97 /* CaptureCombinerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A97FDEDF42ABDC1DFFDD7620 /* CaptureCombinerTests.swift */; };
 		399EE5504C82D5E55E5BCDC2 /* PerformanceDiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6791D6EBC13F1705534379C /* PerformanceDiagnosticsView.swift */; };
@@ -169,6 +170,7 @@
 		5B1844E269E1FB11614D30E0 /* CaptureAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureAppIntents.swift; sourceTree = "<group>"; };
 		5DC14675242BF2330566E8C9 /* CaptureDragHandle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureDragHandle.swift; sourceTree = "<group>"; };
 		5F902EE299EA5D3BCD175568 /* CapturePresentationReceiptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePresentationReceiptTests.swift; sourceTree = "<group>"; };
+		63C56E435E18AAE86817EBDD /* CaptureBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureBoundaryTests.swift; sourceTree = "<group>"; };
 		64A8AA4C7A0B56E22FB341FF /* HistorySelectionInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySelectionInteractionTests.swift; sourceTree = "<group>"; };
 		65AB51AA89B6E53618245C19 /* FloatingCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingCaptureTests.swift; sourceTree = "<group>"; };
 		66479FCD034EFEE83A72E8AD /* WorkflowPresetsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowPresetsView.swift; sourceTree = "<group>"; };
@@ -286,6 +288,7 @@
 				EB5735667DB20489605E3E62 /* BackgroundLibraryTests.swift */,
 				6999B0D887342A47515FA79D /* CaptureAcquisitionPolicyTests.swift */,
 				2113FBCF98597E73F7D1B72D /* CaptureAppIntentsTests.swift */,
+				63C56E435E18AAE86817EBDD /* CaptureBoundaryTests.swift */,
 				A97FDEDF42ABDC1DFFDD7620 /* CaptureCombinerTests.swift */,
 				C169F7BEF93ACBF599895326 /* CaptureDragTests.swift */,
 				6963D73990B636E964E6BC57 /* CaptureFocusTrackerTests.swift */,
@@ -537,6 +540,7 @@
 				0BD033ECE4365FE13DC5E281 /* BackgroundLibraryTests.swift in Sources */,
 				C5077BCDEA3CF848B36E8C7E /* CaptureAcquisitionPolicyTests.swift in Sources */,
 				7AB577090B74092400D7D7B9 /* CaptureAppIntentsTests.swift in Sources */,
+				303AC939A442F1F39E17D262 /* CaptureBoundaryTests.swift in Sources */,
 				348355135999F8F71000CC97 /* CaptureCombinerTests.swift in Sources */,
 				F9291B354604A89DDAC856C0 /* CaptureDragTests.swift in Sources */,
 				E581F531DAC122869C22E16E /* CaptureFocusTrackerTests.swift in Sources */,

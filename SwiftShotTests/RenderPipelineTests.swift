@@ -90,9 +90,9 @@ final class RenderPipelineTests: XCTestCase {
         let preview = try XCTUnwrap(previewRenderer.cgImage)
         XCTAssertEqual(preview.width, 640)
         XCTAssertEqual(preview.height, 480)
-        // The 370×370 styled canvas starts at (135,55); this sample lies in its
-        // left padding, away from the screenshot, toolbar and annotation chrome.
-        let previewPixel = try rgbaPixel(preview, x: 145, y: 240)
+        // The reserved workspace fits this square output to 278×278 at (24,68).
+        // Its 4/28-width left padding is white, away from the image and UI border.
+        let previewPixel = try rgbaPixel(preview, x: 50, y: 200)
         let exported = try await ImageRenderer().render(RenderRequest(image: source,
             edits: CaptureEdits(crop: CGRect(x: 0, y: 0, width: 20, height: 20), style: style), backgroundURL: background))
         XCTAssertEqual(try rgbaPixel(decodePNG(exported.png), x: 1, y: 14), [255, 255, 255, 255])
