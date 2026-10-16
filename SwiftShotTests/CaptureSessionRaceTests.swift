@@ -14,11 +14,15 @@ final class CaptureSessionRaceTests: XCTestCase {
         let original = CaptureDocument(image: fixture.image)
         app.lastDocument = original
         let task = Task { await app.capture(mode: .region) }
+        defer { task.cancel(); Task { await gate.release() } }
         try await waitUntil { await gate.started }
         await app.reopenLastCapture()
         XCTAssertTrue(presenter.activeDocument === original)
-        await gate.release()
         await task.value
+        // Navigation cancels acquisition before returning, but the native
+        // provider's cancellation catch may execute on a later actor turn.
+        try await waitUntil { capture.cancelled }
+        await gate.release()
         XCTAssertTrue(capture.cancelled, "Navigation should cancel acquisition, not merely ignore its eventual result")
         XCTAssertTrue(presenter.activeDocument === original)
         XCTAssertEqual(presenter.presentCount, 0)
@@ -206,13 +210,15 @@ final class CaptureSessionRaceTests: XCTestCase {
         let presenter = RacePresenter()
         let app = fixture.state(capture: capture, presenter: presenter)
         let pending = Task { await app.capture(mode: .region) }
+        defer { pending.cancel(); Task { await gate.release() } }
         try await waitUntil { await gate.started }
         app.closeEditor()
         await pending.value
-        XCTAssertTrue(capture.cancelled)
         XCTAssertEqual(presenter.presentCount, 0)
         XCTAssertEqual(app.phase, .idle)
         XCTAssertNil(app.statusMessage)
+        try await waitUntil { capture.cancelled }
+        XCTAssertTrue(capture.cancelled)
     }
 
     func testCallerCancellationPropagatesToAcquisition() async throws {
@@ -223,13 +229,17 @@ final class CaptureSessionRaceTests: XCTestCase {
         let presenter = RacePresenter()
         let app = fixture.state(capture: capture, presenter: presenter)
         let pending = Task { await app.capture(mode: .region) }
+        defer { pending.cancel(); Task { await gate.release() } }
         try await waitUntil { await gate.started }
         pending.cancel()
         await pending.value
-        XCTAssertTrue(capture.cancelled)
         XCTAssertEqual(presenter.presentCount, 0)
         XCTAssertEqual(app.phase, .idle)
         XCTAssertNil(app.statusMessage)
+        // The UI must recover promptly without draining native work. Observe
+        // propagation separately from the provider's later cancellation catch.
+        try await waitUntil { capture.cancelled }
+        XCTAssertTrue(capture.cancelled)
     }
 
     func testSuccessfulExportIsNotReportedAsFailedWhenRecoveryMaintenanceFails() async throws {
