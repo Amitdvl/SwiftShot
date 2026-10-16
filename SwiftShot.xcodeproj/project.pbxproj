@@ -48,6 +48,7 @@
 		4DE088F27A2AEF9C691E87C4 /* GlobalShortcutManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E59CDD953653AE145F8B0105 /* GlobalShortcutManager.swift */; };
 		514B0FC55CA3DDAEDEAA7EA3 /* CapturePresentationObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE9A84E02F480FE3E6D36CF /* CapturePresentationObserver.swift */; };
 		53896F250FCB5C771E6299C6 /* WorkflowPresetsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66479FCD034EFEE83A72E8AD /* WorkflowPresetsView.swift */; };
+		576B5EF1FDDF25CFBD117306 /* CaptureFreezeRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2617DABC7F11568BB777217A /* CaptureFreezeRecoveryTests.swift */; };
 		58AA7D3582CC1F04874A3EE9 /* QuickWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6676204A25DC9A71C9BD58ED /* QuickWorkflowTests.swift */; };
 		5CC3FC3E6247AFA8D27CB2E1 /* FloatingCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65AB51AA89B6E53618245C19 /* FloatingCaptureTests.swift */; };
 		603E58EE77B6D6643B883061 /* CaptureFocusTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA7D46CACB4D5D7876CA3958 /* CaptureFocusTracker.swift */; };
@@ -86,6 +87,8 @@
 		C29B248D935337FBBF06B56A /* InspectorHitTestingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 480973BB3912904AABDFE8D1 /* InspectorHitTestingTests.swift */; };
 		C39A98395735E66B66C518AD /* WindowImageCallbackBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB13AFA15CF2F378AD98D57A /* WindowImageCallbackBridge.swift */; };
 		C5077BCDEA3CF848B36E8C7E /* CaptureAcquisitionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6999B0D887342A47515FA79D /* CaptureAcquisitionPolicyTests.swift */; };
+		C60EAA7CAE4592CDC27E13B9 /* CaptureRequestDeadlineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19405ECE2DEE1516727980A /* CaptureRequestDeadlineTests.swift */; };
+		C63021B16D3417E815C32DB6 /* CaptureRequestDeadline.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFD9AA322D56ADB753EB226F /* CaptureRequestDeadline.swift */; };
 		C7EB429E3F77D81CC782B1E2 /* WorkflowPerformance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3335CFC598BCE282FE88E30F /* WorkflowPerformance.swift */; };
 		C834717E1F9C49CF3B6C1C37 /* PerformanceDiagnosticsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD386192103FBE23FA11281C /* PerformanceDiagnosticsWindowController.swift */; };
 		CC7B360B3C8C20B9D4ADE631 /* FloatingCaptureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2CF619BC4C535EA143C5F5C /* FloatingCaptureController.swift */; };
@@ -140,6 +143,7 @@
 		1D44AA0BBB2747C34E366BDB /* RetentionPendingOwnershipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetentionPendingOwnershipTests.swift; sourceTree = "<group>"; };
 		1E27018204C66A2C0C435F31 /* ScrollingCaptureHUDTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollingCaptureHUDTests.swift; sourceTree = "<group>"; };
 		2113FBCF98597E73F7D1B72D /* CaptureAppIntentsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureAppIntentsTests.swift; sourceTree = "<group>"; };
+		2617DABC7F11568BB777217A /* CaptureFreezeRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureFreezeRecoveryTests.swift; sourceTree = "<group>"; };
 		2DE9A84E02F480FE3E6D36CF /* CapturePresentationObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePresentationObserver.swift; sourceTree = "<group>"; };
 		2EC17B7191474A40F9A7F76C /* ScrollingCaptureSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollingCaptureSession.swift; sourceTree = "<group>"; };
 		3335CFC598BCE282FE88E30F /* WorkflowPerformance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowPerformance.swift; sourceTree = "<group>"; };
@@ -197,6 +201,7 @@
 		AC111FA09B3FDB84C26F6E6C /* WorkflowCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowCoordinatorTests.swift; sourceTree = "<group>"; };
 		AD386192103FBE23FA11281C /* PerformanceDiagnosticsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceDiagnosticsWindowController.swift; sourceTree = "<group>"; };
 		AF807F4EB51DA14406003F14 /* HotPathIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotPathIntegrationTests.swift; sourceTree = "<group>"; };
+		AFD9AA322D56ADB753EB226F /* CaptureRequestDeadline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureRequestDeadline.swift; sourceTree = "<group>"; };
 		B27738D1E807B94850DA628E /* WindowEditorLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowEditorLayoutTests.swift; sourceTree = "<group>"; };
 		B33EE6BDA24BC578FEBB125F /* StatusItemRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemRegressionTests.swift; sourceTree = "<group>"; };
 		B6529B06B0C646B92DCC44FF /* RecoveryCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryCoordinator.swift; sourceTree = "<group>"; };
@@ -219,6 +224,7 @@
 		DB40C686F843C8369D6139A8 /* SwiftShot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftShot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DBADAA5C805B354C36816B98 /* RecoveryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryStore.swift; sourceTree = "<group>"; };
 		E05783FECFD08D472141DE38 /* CaptureSessionRaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSessionRaceTests.swift; sourceTree = "<group>"; };
+		E19405ECE2DEE1516727980A /* CaptureRequestDeadlineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureRequestDeadlineTests.swift; sourceTree = "<group>"; };
 		E2CF619BC4C535EA143C5F5C /* FloatingCaptureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingCaptureController.swift; sourceTree = "<group>"; };
 		E59CDD953653AE145F8B0105 /* GlobalShortcutManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalShortcutManager.swift; sourceTree = "<group>"; };
 		E7847FB5191FB6342855939B /* CaptureRegionReference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureRegionReference.swift; sourceTree = "<group>"; };
@@ -247,6 +253,7 @@
 				334E59AD9C703D3806DC770D /* CaptureInterfaces.swift */,
 				CBD927B1542DD3722374CA81 /* CaptureLatencyTrace.swift */,
 				3E29A9E361CBC6FF2CF986D0 /* CapturePresentationReceipt.swift */,
+				AFD9AA322D56ADB753EB226F /* CaptureRequestDeadline.swift */,
 				942E319AC87407E8EB04C089 /* CaptureSessionCoordinator.swift */,
 				B9103C8429176A89F8B9256F /* ClipboardService.swift */,
 				FCA19403F5B4483A2026EF7F /* ExportService.swift */,
@@ -282,9 +289,11 @@
 				A97FDEDF42ABDC1DFFDD7620 /* CaptureCombinerTests.swift */,
 				C169F7BEF93ACBF599895326 /* CaptureDragTests.swift */,
 				6963D73990B636E964E6BC57 /* CaptureFocusTrackerTests.swift */,
+				2617DABC7F11568BB777217A /* CaptureFreezeRecoveryTests.swift */,
 				C125E54406AE3BEC7445A598 /* CaptureLatencyTraceTests.swift */,
 				5F902EE299EA5D3BCD175568 /* CapturePresentationReceiptTests.swift */,
 				F411AB2E6AB578EDA18361DE /* CaptureRegionReferenceTests.swift */,
+				E19405ECE2DEE1516727980A /* CaptureRequestDeadlineTests.swift */,
 				E05783FECFD08D472141DE38 /* CaptureSessionRaceTests.swift */,
 				D8CAFE43CF30CD2D789FD593 /* CaptureWorkflowTests.swift */,
 				35F5DE919AC948253589B1AA /* ControlledRenderBenchmarkTests.swift */,
@@ -531,9 +540,11 @@
 				348355135999F8F71000CC97 /* CaptureCombinerTests.swift in Sources */,
 				F9291B354604A89DDAC856C0 /* CaptureDragTests.swift in Sources */,
 				E581F531DAC122869C22E16E /* CaptureFocusTrackerTests.swift in Sources */,
+				576B5EF1FDDF25CFBD117306 /* CaptureFreezeRecoveryTests.swift in Sources */,
 				234B82C17A692D8DDC04A5DB /* CaptureLatencyTraceTests.swift in Sources */,
 				93C661B090B5215B6CFF9D9C /* CapturePresentationReceiptTests.swift in Sources */,
 				8048F39F399211F89B340F5D /* CaptureRegionReferenceTests.swift in Sources */,
+				C60EAA7CAE4592CDC27E13B9 /* CaptureRequestDeadlineTests.swift in Sources */,
 				67D70CEF87AA93BB8683DC94 /* CaptureSessionRaceTests.swift in Sources */,
 				E658340E8598D57832B7E9C5 /* CaptureWorkflowTests.swift in Sources */,
 				FE34D8035559AAA129EEC4B2 /* ControlledRenderBenchmarkTests.swift in Sources */,
@@ -601,6 +612,7 @@
 				514B0FC55CA3DDAEDEAA7EA3 /* CapturePresentationObserver.swift in Sources */,
 				110F9F7324C5CE301B875D39 /* CapturePresentationReceipt.swift in Sources */,
 				77C627E702A110F46F8C9F05 /* CaptureRegionReference.swift in Sources */,
+				C63021B16D3417E815C32DB6 /* CaptureRequestDeadline.swift in Sources */,
 				053DE964E5CEFEC90D4D22ED /* CaptureSessionCoordinator.swift in Sources */,
 				8C94C170B2B66653CFC9E875 /* CaptureToolbarView.swift in Sources */,
 				FAB8737B84D25ACACBFEE5FD /* CaptureWorkflow.swift in Sources */,

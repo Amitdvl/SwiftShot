@@ -28,6 +28,7 @@ final class AppState {
     private var historyWindow: HistoryWindowController?
     private let renderer: any CaptureRendering
     private let captureService: any ScreenCaptureProviding
+    private let captureTimeout: Duration
     private let textRecognizer: any TextRecognizing
     private let exporter: any CaptureExporting
     private let clipboard: any CaptureClipboard
@@ -97,6 +98,7 @@ final class AppState {
          clipboard: any CaptureClipboard = ClipboardService.shared, presentsUI: Bool = true,
          persistUnsavedCaptures: Bool = false,
          captureService: any ScreenCaptureProviding = ScreenCaptureService.shared,
+         captureTimeout: Duration = .seconds(8),
          renderer: any CaptureRendering = ImageRenderer(), textRecognizer: any TextRecognizing = OCRService.shared,
          overlay: any CapturePresenting = CaptureOverlayController(),
          directoryPicker: any CaptureDirectoryPicking = NativeCaptureDirectoryPicker(),
@@ -119,6 +121,7 @@ final class AppState {
         self.persistUnsavedCaptures = persistUnsavedCaptures
         self.historyWindow = historyWindow
         self.captureService = captureService
+        self.captureTimeout = captureTimeout
         self.renderer = renderer
         self.textRecognizer = textRecognizer
         self.overlay = overlay
@@ -241,14 +244,20 @@ final class AppState {
         NotificationService.dismiss()
         CaptureLatencyTrace.shared.mark(.captureWindowsHidden, for: performanceRun)
         let service = captureService
+        let timeout = captureTimeout
         let captureTask = Task {
-            defer { GlobalShortcutManager.shared.dismissMenuTracking() }
-            try Task.checkCancellation()
-            CaptureLatencyTrace.shared.mark(.freezeTaskStarted, for: performanceRun)
-            let screens: [FrozenScreen]
-            if mode == .window { screens = try await service.freeze(mode: mode, selectorID: token) }
-            else { screens = try await service.freeze(mode: mode) }
-            return screens
+            defer {
+                // Finish menu tracking before presenting the selector. A late
+                // old acquisition must not dismiss a newer session's menu.
+                if sessionID == token { GlobalShortcutManager.shared.dismissMenuTracking() }
+            }
+            let nativeTask = Task {
+                try Task.checkCancellation()
+                CaptureLatencyTrace.shared.mark(.freezeTaskStarted, for: performanceRun)
+                if mode == .window { return try await service.freeze(mode: mode, selectorID: token) }
+                return try await service.freeze(mode: mode)
+            }
+            return try await CaptureRequestDeadline.value(of: nativeTask, timeout: timeout)
         }
         freezeTask = captureTask
         // The coordinator owns the old immutable pixels before navigation. Disk
