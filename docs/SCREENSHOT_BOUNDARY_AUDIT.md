@@ -13,7 +13,7 @@ The live crop check also exposed floating-point round-trip noise at fractional p
 ## Automated checks
 
 - Original checkout optimized Debug suite on Xcode 27: **439 tests passed, zero failures**, including actual hosted AppKit control/gesture tests.
-- Isolated publication suite on Xcode 27: **434 tests, 433 passed, one failure** in unchanged `AsyncWorkflowTests.testVisionRecognizesRenderedTextFixture`. Vision reports missing E5/ANE model resources with error code 13. All boundary/layout/export checks passed. The publication diff does not change OCR; the initial checkout contains a separate unpublished OCR fallback. Pinned macOS 26 CI is the publication gate.
+- Isolated publication suite on Xcode 27: **434 tests, 433 passed, one failure** in unchanged `AsyncWorkflowTests.testVisionRecognizesRenderedTextFixture`. Vision reports missing E5/ANE model resources with error code 13. All boundary/layout/export checks passed. The publication diff does not change OCR; the initial checkout contains a separate unpublished OCR fallback. A focused retry reproduced the same platform error. [Pinned macOS 26 CI passed](https://github.com/Amitdvl/SwiftShot/actions/runs/38985395915) for the isolated implementation and initial audit (`e22b961`), including clean build, complete XCTest run, Python checks and artifact hygiene. Later changes to this audit are documentation only.
 - Python script tests: **17 passed**.
 - Boundary raster tests cover every edge, white/black/busy/transparent content, light/dark appearance and toolbox open/closed. They require both light and dark edge pixels.
 - Hosted-view tests require stationary output bounds across toolbox toggles and disjoint image/control frames. Crop, style, annotation selection, undo and redo retain their expected source coordinates.
@@ -45,11 +45,12 @@ Results below are recorded separately from shared-component and automated covera
 | OCR selection | Actual title-bar region recognized and copied 11 characters; successful OCR exits to desktop without opening an editor | Passed |
 | Small capture near screen edge | Drag from (1,1) to (21,21) produces 40×40 source; styled 328×328 output stays distinct with toolbox open; crop label remains 40×40 | Passed |
 | Quick Copy | 300×200-point region writes a 600×400 clipboard PNG and exits without editor chrome | Passed |
-| Smaller Share / drag export | Controls inspected in More inspector; renderer/export regression coverage passed; no live destination drag or Smaller Share action performed | Automated only |
+| Copy Smaller | Actual More inspector stays beside output; 2088×1288 output scales to the configured 2048 px limit as a 2048×1263 clipboard PNG; inspected PNG excludes editor chrome | Passed |
+| Save Smaller / drag export | Controls inspected in More inspector; renderer/export regression coverage passed; no live destination drag or Save Smaller action performed | Automated only |
 | Scrolling capture / recapture | Menu-only entry points could not be operated reliably through native accessibility, Computer Use or Peekaboo on this OS; shared editor and existing flow tests pass | Live check unavailable |
 | History / combine reopening | No entry exposed in current status-menu UI; shared editor and existing history/combine tests pass | Automated only |
 
-The temporary Fullscreen and OCR shortcut toggles were restored to their initial disabled state. Region, Window and Quick Copy shortcuts remain enabled as initially found. Test-created Settings windows were closed. Local test images and logs remain ignored; none are published.
+The region style was restored to None with padding 79, corners 26 and shadow 18, matching the initial observed controls. The temporary Fullscreen and OCR shortcut toggles were restored to their initial disabled state. Region, Window and Quick Copy shortcuts remain enabled as initially found. Test-created Settings windows were closed. Local test images and logs remain ignored; none are published.
 
 ## Environment and limits
 
